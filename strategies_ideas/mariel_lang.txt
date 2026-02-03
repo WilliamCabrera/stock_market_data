@@ -1,0 +1,46 @@
+Idea Initial:
+
+Activo: QQQ
+
+Entrada: Romper maximo/ minimo Initial Balance (IB, 9:30 - 10:30), IB >= 0.55%
+
+Ventana de entrada: 10:30-13:30
+
+Salida TP (0.60 x Rango IB) SL (0.40 x Rango IB), cierra 15:30
+
+
+
+Estrategia:
+
+Activo: QQQ
+
+Reglas entrrada:
+Condicion: IB >= 0.55%
+Trigger: Cierre vela de 1h por encima/debajo  del IB_High/IB_low
+
+Reglas Salida:
+TP:  0.60 x Rango IB,
+SL: 0.40 x Rango IB , 
+Cierre forzoso 15:30
+
+Gestion de Riesgo:
+1-2% del capital
+si el VIX > 35 reducir el size 50%
+
+Registrar el resultato (screenshots, )
+
+resultato:
+
+1632 trades
+win rate: 28%
+profit factor: 1.29
+total return : 72.52%
+max dd: 8.24
+
+
+
+
+
+
+
+

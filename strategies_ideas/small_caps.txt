@@ -1,0 +1,58 @@
+* Strategia 1:
+
+condiciones de entrada
+1 - timeframe para senal de entrada es 1 minuto.
+2 - precio al menos 10% por encima del cierre del dia anterior.
+3 - volumen > promedio de volumen de las ultimas 50 velas
+4 - vela cierra verde y precio > 9 sma > 200 sma
+5 - solo Longs
+
+condiciones de salida al menos una de las siguientes:
+1 - vela roja cierra debajo del 9 sma en el timeframe the 5 mins
+2 - stopLoss debajo de la vela que dio la senal para la operacion (timeframe 1 minuto)
+
+
+size: 1% del equity.
+
+Notas: tener en cuenta el slippage y la liquidez (que al menos el volumen > al total de acciones que se va a operar un la vela de la senal)
+
+Strategia 2:
+- Esperar un big move,  uno o varios  dias.
+- Esperar una bounce en 200 sma 5 minutes
+
+ stopLoss: % debajo de 200 sma.  
+
+
+
+Notas:  evitar entrar en buyouts (tienen un spike y despues se matienen planas todo el dia)
+
+
+* Estrategia 2:
+
+
+- varios dias rojos con volumen decreciendo (entre tres a 6 dias)
+- a despues del tercer dia hay un gap down
+- comprar si la accion se mantiene por encima de vwap o lo recupera con volumen.
+- salida:  HOD, PM High, previous day close si el gap si el open esta lejos
+
+
+Shorts :
+ * Arcoiris short :
+
+ - despues de un parabolic short o un rebote del gato muerto (pequenho push despues de una gran caida)
+ - el stock abre el dia por debajo de vwap o ligeramente por encima , se extiende con menos volumen que los dias anteriores donde hubo movimineto
+ - rompe vwap hacia abajo
+ - entrar cuando rompe vwap 
+ - close EOD
+ - stopLoss: el high del inicio del movimiento.
+
+ Long:
+
+indicador: Donchain Channel + volumen
+Donchain channel config: lookback (5 ou 25 min), offset -1 ( el valor de precio vela[i] usa el Dchannel de la vela[i-1])
+timeframe: 5 min (menos ruido)
+
+trigger long: rompe (close) upper band + volumen > avg vol (lookback=5)  
+Nota: probar varias opciones avg volumen , 3xVolume etc.
+
+exit: rompe(close) la parte baja de la banda.

@@ -1,0 +1,24 @@
+Estrategia 1:
+
+if :
+- SPY encima de SMA 200 (daily)
+- 3 dias consecutivos rojos : IMPORTANTE!!!:  open < close anterior para cada caso
+then: Buy open del dia siguiente
+T. Profit: first Close sobre SMA 5 (daily)
+Stop Loss: 
+  case 1:  determinar un valor optimo de Daily Range %
+  case 2: SMA_14 (Daily Range %)
+
+
+Daily Range % = 100 * (Open - Close)/open (negativo en red candles)
+
+
+
+
+Estrategia 2
+
+Open del VIX > Bband(20) (Bollinger band del VIX)
+CLose del VIX < Bband(20) (Bollinger band del VIX)
+Close del VIX - Open del VIX >= 10% (Red Candle)
+Buy SPX
+Sell SPX cuando el VIX cierra debajo de su SMA(20)

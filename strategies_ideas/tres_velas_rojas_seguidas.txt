@@ -1,0 +1,10 @@
+SP500 o Nasdaq:
+
+TIMEFRAME:  Daily
+- tres velas rojas consecutivas
+- close de cada vela roja tiene que ser menor que el close anterior
+- stop loss 2 ATR a partir del entry (original)
+- TP: primer cierre por encima de SMA 5
+
+- stop loss: 2 ATR a partir del lowest low de las 3 velas rojas
+- TP: 1x1

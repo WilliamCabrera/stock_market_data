@@ -1,0 +1,61 @@
+Timeframe: Daily
+Activo: SPY, QQQ
+
+Reglas entrada:
+ - vela verde cierra por encima de SMA 20 
+ - minimo(low de la vela verde, vela anteroir) es menor que el SMA 20
+
+ stop: low de la vela de entrada
+
+ TP: trailing stop: primera vela que cierre por debajo del low de la anterior
+
+
+
+
+ Cosas que influencian el valor del SP500 (economia americana):
+ - tasa de interes
+ - desempleo
+ - inflacion 
+
+
+tips interesantes SP500 y otros indices
+- el SP500 cuando hace gaps tiende a continuar
+- ultimos dias del mes tiende a ser alcistas, entrar cerca del 25 y en cuanto
+
+
+
+ VIX (ETF VXX)
+- siempre esta cayendo
+ - cuando VIX cae BBand 5 (Robber Bands) periodos entrar en largo
+
+ORO
+ - Cuando el SPY esta en maximos el ORO sube (razon : la gente tiene panico y se protege con el ORO)
+ - Donchain chanel y una media. probar
+ - los viernes pasa algo frecuentemente
+
+ - precio antes de la publicacion de datos de la FED todos los jueves y 2 horas despues de la publicacion de los datos 
+ si el precio esta por debajo del anterior ponerse corto hasta el final dia, viceversa para largos. Exception: subida de tipos, Fed Funds ( futuros, EFFR)
+)
+libros 
+- Larry Connors: Computerized trading
+- Beating the Financial Futures Market: Combining Small Biases Into Powerful Money
+
+Scalps Nasdaq :
+ - buscar tendencias
+
+
+
+ ORO:
+  - Comprar los jueves 5pm y cerrar los viernes al final, stop loss 1%
+
+Nasdaq:
+- comprar a las 8pm y vende a las 5 am, sl: 0.25% tp: 2%
+
+
+Divergencias Intermercado , Correlaciones basicas.
+* Bonos vs Indices de Acciones
+* Oro vs USD
+* Divisas vs Materias primas
+   - CAD vs Petroleo
+   - Dollar Australiano vs ORO
+* Indices de technologia vs Rendimiento de bonos

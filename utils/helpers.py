@@ -31,7 +31,6 @@ def vwap(df, time_col='date'):
 
     return df["vwap"]
 
-
 def calculate_sma(df, period: int = 50):
     return pd.DataFrame({
         'time': df['date'],
@@ -119,6 +118,7 @@ def get_data_daily_for_backtest(ticker="IRBT", start_date="2025-12-01", end_date
     df_daily = raw_data_to_dataframe(df_daily)
    
     return (df_daily, None)
+
 
 
 def fetch_all_data_from_gappers(connectionParams):
@@ -515,7 +515,7 @@ def plot_trades_indicators(df, markers=[], indicators = []):
     chart.show(block=True)
     return
 
- 
+
     
 def trades_stats(func):
     def wrapper(*args, **kwargs):

@@ -85,3 +85,29 @@ def out_of_sample(init_worker = None, strategy_func=None, n_cpus=1, chunk_size =
 
     print(f"Total elapsed time: {end - start:.2f} seconds")
     return
+
+def walk_fordward_runner(init_worker = None, strategy_func=None, n_cpus=1, chunk_size = 10, sample_type='in_sample', walk_fordward_step = 1):
+    """
+    this will get the the gappers from data base and apply the given strategy
+    """
+    
+    print(" Walk fordward step:", walk_fordward_step)
+
+    start = tm.perf_counter()
+    ids = range(0, n_cpus)  # example ids
+    
+    file_name = f'{sample_type}_{walk_fordward_step}'
+    file_path = f'backtest_dataset/walk_fordward/{file_name}.parquet'
+    #out_sample_path = f'backtest_dataset/walk_fordward/out_sample_{walk_fordward_step}.parquet'
+    
+    gappers_backtest_dataset = pd.read_parquet(file_path)
+    splits = utils_helpers.split_df_by_size(gappers_backtest_dataset, chunk_size = chunk_size)
+    tasks = [(split, walk_fordward_step, file_name) for split in splits ]
+
+    with Pool(processes=n_cpus, initializer=init_worker) as pool:
+        results = list(pool.imap_unordered(strategy_func, tasks))
+        
+    end = tm.perf_counter()
+
+    print(f"Total elapsed time: {end - start:.2f} seconds")
+    return

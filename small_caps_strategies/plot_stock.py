@@ -191,7 +191,7 @@ def pipeline_backtest_dataset(df = pd.DataFrame([]), id=0):
         # 6. CALCULAR Y MOSTRAR LA DURACIÓN
         total_duration = end_time - start_time
         #tds.to_parquet(f'trades/pipeline_{id}.parquet')
-        utils_helpers.append_single_parquet(df=df_total, path=f'backtest_dataset/dataset/backtest_dataset_pipeline_{id}.parquet')
+        utils_helpers.append_single_parquet(df=df_total, path=f'backtest_dataset/in_sample/backtest_dataset_pipeline_{id}.parquet')
         print(f"⏰ Tiempo total de ejecución for pipeline {id} total: {total_duration:.2f} segundos.")
         utils_helpers.log(f"⏰ Tiempo total de ejecución for pipeline {id} total duration: {total_duration:.2f} segundos.", f'./pipeline_logs/backtest_dataset_log_{id}.csv')
         
@@ -238,7 +238,7 @@ def pipeline_backtest_dataset_long(df = pd.DataFrame([]), id=0):
         # 6. CALCULAR Y MOSTRAR LA DURACIÓN
         total_duration = end_time - start_time
         #tds.to_parquet(f'trades/pipeline_{id}.parquet')
-        utils_helpers.append_single_parquet(df=df_total, path=f'backtest_dataset/dataset/backtest_dataset_long_pipeline_{id}.parquet')
+        utils_helpers.append_single_parquet(df=df_total, path=f'backtest_dataset/in_sample/backtest_dataset_long_pipeline_{id}.parquet')
         print(f"⏰ Tiempo total de ejecución for pipeline {id} total: {total_duration:.2f} segundos.")
         utils_helpers.log(f"⏰ Tiempo total de ejecución for pipeline {id} total duration: {total_duration:.2f} segundos.", f'./pipeline_logs/backtest_dataset_long_log_{id}.csv')
         
@@ -433,12 +433,12 @@ def update_dataset_csv():
 #runner.main(init_worker= runner.init_worker, strategy_func= pipeline_backtest_dataset_long, n_cpus= 4, chunk_size= 1000)
 #runner.out_of_sample(init_worker= runner.init_worker, strategy_func= pipeline_backtest_dataset_long_out_of_sample, n_cpus= 4, chunk_size= 1000)
 
-# df1  = pd.read_parquet('backtest_dataset/dataset/backtest_dataset_pipeline_1.parquet')
-# df2  = pd.read_parquet('backtest_dataset/dataset/backtest_dataset_pipeline_2.parquet')
-# df3  = pd.read_parquet('backtest_dataset/dataset/backtest_dataset_pipeline_3.parquet')
-# df4  = pd.read_parquet('backtest_dataset/dataset/backtest_dataset_pipeline_4.parquet')
+# df1  = pd.read_parquet('backtest_dataset/in_sample/backtest_dataset_pipeline_1.parquet')
+# df2  = pd.read_parquet('backtest_dataset/in_sample/backtest_dataset_pipeline_2.parquet')
+# df3  = pd.read_parquet('backtest_dataset/in_sample/backtest_dataset_pipeline_3.parquet')
+# df4  = pd.read_parquet('backtest_dataset/in_sample/backtest_dataset_pipeline_4.parquet')
 # df_total = pd.concat([df1, df2, df3, df4], ignore_index=True)
-# df_total.to_parquet('backtest_dataset/dataset/gappers_backtest_dataset_5min.parquet', index=False)
+# df_total.to_parquet('backtest_dataset/in_sample/gappers_backtest_dataset_5min.parquet', index=False)
 
 # df1  = pd.read_parquet('backtest_dataset/out_of_sample/backtest_dataset_out_of_sample_pipeline_5.parquet')
 # df2  = pd.read_parquet('backtest_dataset/out_of_sample/backtest_dataset_out_of_sample_pipeline_6.parquet')
@@ -447,12 +447,12 @@ def update_dataset_csv():
 # df_total = pd.concat([df1, df2, df3, df4], ignore_index=True)
 # df_total.to_parquet('backtest_dataset/out_of_sample/gappers_backtest_dataset_5min_out_of_sample.parquet', index=False)
 
-# df1  = pd.read_parquet('backtest_dataset/dataset/backtest_dataset_long_pipeline_1.parquet')
-# df2  = pd.read_parquet('backtest_dataset/dataset/backtest_dataset_long_pipeline_2.parquet')
-# df3  = pd.read_parquet('backtest_dataset/dataset/backtest_dataset_long_pipeline_3.parquet')
-# df4  = pd.read_parquet('backtest_dataset/dataset/backtest_dataset_long_pipeline_4.parquet')
+# df1  = pd.read_parquet('backtest_dataset/in_sample/backtest_dataset_long_pipeline_1.parquet')
+# df2  = pd.read_parquet('backtest_dataset/in_sample/backtest_dataset_long_pipeline_2.parquet')
+# df3  = pd.read_parquet('backtest_dataset/in_sample/backtest_dataset_long_pipeline_3.parquet')
+# df4  = pd.read_parquet('backtest_dataset/in_sample/backtest_dataset_long_pipeline_4.parquet')
 # df_total = pd.concat([df1, df2, df3, df4], ignore_index=True)
-# df_total.to_parquet('backtest_dataset/dataset/gappers_backtest_dataset_long_5min.parquet', index=False)
+# df_total.to_parquet('backtest_dataset/in_sample/gappers_backtest_dataset_long_5min.parquet', index=False)
 
 
 # df1  = pd.read_parquet('backtest_dataset/out_of_sample/backtest_dataset_long_out_of_sample_pipeline_5.parquet')
@@ -462,15 +462,15 @@ def update_dataset_csv():
 # df_total = pd.concat([df1, df2, df3, df4], ignore_index=True)
 # df_total.to_parquet('backtest_dataset/out_of_sample/gappers_backtest_dataset_long_5min_out_of_sample.parquet', index=False)
 
-df = pd.read_parquet('backtest_dataset/dataset/gappers_backtest_dataset_5min.parquet')
-df['date'] =  pd.to_datetime(df['date'])
-df_930 =  df[df['date'].dt.time == pd.to_datetime("9:30").time()]
-df_930['prct'] = 100*(df_930['open'] - df_930['previous_day_close'])/df_930['previous_day_close']
+# df = pd.read_parquet('backtest_dataset/in_sample/gappers_backtest_dataset_5min.parquet')
+# df['date'] =  pd.to_datetime(df['date'])
+# df_930 =  df[df['date'].dt.time == pd.to_datetime("9:30").time()]
+# df_930['prct'] = 100*(df_930['open'] - df_930['previous_day_close'])/df_930['previous_day_close']
 
 
 
-df_trades = df_930[(df_930['prct'] > 50 ) & (df_930['volume'] > 40000) & (df_930['RVOL_daily'] >=3) ][['open','previous_day_close','prct', 'date_str','date', 'ticker','volume', 'RVOL_daily']]
-df_trades = df_trades.sort_values(by=['ticker', 'date'])
+# df_trades = df_930[(df_930['prct'] > 50 ) & (df_930['volume'] > 40000) & (df_930['RVOL_daily'] >=3) ][['open','previous_day_close','prct', 'date_str','date', 'ticker','volume', 'RVOL_daily']]
+# df_trades = df_trades.sort_values(by=['ticker', 'date'])
 
 
 
@@ -482,15 +482,15 @@ df_trades = df_trades.sort_values(by=['ticker', 'date'])
 
 
 
-# # df1 = pd.read_parquet('backtest_dataset/dataset/gappers_backtest_dataset_5min_v1.parquet')
+# # df1 = pd.read_parquet('backtest_dataset/in_sample/gappers_backtest_dataset_5min_v1.parquet')
 # # df1['date'] =  pd.to_datetime(df1['date'])
 # # df1_930 =  df1[df1['date'].dt.time == pd.to_datetime("9:30").time()]
 # # df1_930['prct'] = 100*(df1_930['open'] - df1_930['previous_day_close'])/df1_930['previous_day_close']
 
 # # print(df_930[['open','previous_day_close','prct', 'date_str', 'ticker']])
 # # print(df1_930[['open','previous_day_close','prct', 'date_str', 'ticker']])
-print(len(df_trades))
-print(df_trades[0:50])
+# print(len(df_trades))
+# print(df_trades[0:50])
 
 # print(len(df_vbt))
 # print(df_vbt)
@@ -500,8 +500,11 @@ print(df_trades[0:50])
 # df_allk = df_930[df_930['ticker'] == 'ABOS']
 # print(df_allk[['open','previous_day_close','prct', 'date_str','date', 'ticker']])
 
-ticker = 'AAOI'
-date_str = '2022-09-16'
+date_str =  "2022-07-01"
+previous_day_close_0 = 1.19
+ticker='ADXN'
+# ticker = 'AAOI'
+# date_str = '2022-09-16'
 (df_5min, _) = prepare_data_parabolic_short_5min(ticker, date_str, date_str)
 plot_trades(df_5min, markers=[])
 

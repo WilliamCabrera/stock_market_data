@@ -7,6 +7,7 @@ import time as tm
 from functools import wraps
 from small_caps_strategies import commons
 from pprint import pprint
+from pathlib import Path
 
 dt = {}
 # ticker = "SIDU"
@@ -398,8 +399,6 @@ def prepare_params_and_vectors_for_gappers_with_trailing(f_dict, gap_list =[], t
     
     return all_params
 
-
-
 def modify_trades_columns(params=None, strategy_name_prefix = "strategy"):
     if params is None:
         return pd.DataFrame([])
@@ -486,8 +485,15 @@ def modify_trades_columns_trailing(params=None, strategy_name_prefix = "strategy
     return trades[[ 'ticker', 'type','entry_price',
     'exit_price','stop_loss_price',  'pnl',
     'Return', 'rvol_daily',  'previous_day_close','volume','entry_time','exit_time','strategy']]
-  
     
+def reduce_trades_columns(trades):
+    if trades is None or len(trades) == 0:
+        return pd.DataFrame([])
+    
+    return trades[[ 'ticker', 'type','entry_price',
+    'exit_price','stop_loss_price',  'pnl',
+    'Return', 'rvol_daily',  'previous_day_close','volume','entry_time','exit_time','strategy']]
+  
 def generate_signal_to_force_close_EOD(forced_exit, index_master):
     
     dates = pd.to_datetime(index_master.date)  # fecha sin hora
@@ -527,8 +533,8 @@ def save_trades(trades, path="vectorbt_trades", append=True):
 
         # Iterar por cada grupo
         for strategy_name, group_df in grouped:
-            print("Strategy:", strategy_name)
-            print(group_df)  # Aquí tienes el DataFrame solo de esa estrategia
+            #print("Strategy:", strategy_name)
+            #print(group_df)  # Aquí tienes el DataFrame solo de esa estrategia
             if append:
                 utils_helpers.append_single_parquet(df=group_df, path=f'{path}/{strategy_name}.parquet')
             else:  
@@ -541,571 +547,39 @@ def save_trades(trades, path="vectorbt_trades", append=True):
     
     return
 
-# ======= decorator to apply to all strategies =========
-def strategy_pipeline(strategy_fn):
+def save_trades_to_file(trades, file_path="vectorbt_trades", append=True):
     """
-    Decorador de pipeline para estrategias que operan sobre df_dict
+    trades: trades dataframe
+    path: path to the folder where trades will be saved
     """
-    @wraps(strategy_fn)
-    def wrapper():
-        # -----------------------------
-        # LOAD DATA
-        # -----------------------------
-        df = pd.read_parquet('backtest_dataset/dataset/gappers_backtest_dataset_5min.parquet')
-
-        df['date'] = pd.to_datetime(df['date'])
-        #df['date_v1'] = pd.to_datetime(df['date'])
-        #df = df.set_index('date')
-        groups = df.groupby(['ticker','date_str'])
-
-        print(f'Total of groups: {len(groups)}')
-
-        counter = 0
-        df_dict = {}
-        index = 0
-        total_trades = 0
-
-        start_time = tm.perf_counter()
-
-        # -----------------------------
-        # MAIN LOOP
-        # -----------------------------
-        for (ticker,date_str), group in groups:
-            
-            group = group.set_index('date')
-            #group = group.sort_index()
-            len_group = len(group)
-            #print(group)
-
-            if counter >= 100_000:
-                index += 1
-                print(
-                    f'Processing backtest for {len(df_dict)} tickers '
-                    f'at iteration {index}...'
-                )
-                #print(df_dict)
-                
-                trades = strategy_fn(df_dict)
-                save_trades(trades,path="vectorbt_trades/in_sample")
-
-                total_trades += len(trades)
-
-                counter = 0
-                df_dict = {}
-
-            if len_group > 50:
-                counter += len_group
-                if ticker in df_dict:
-                    gp = df_dict[ticker]
-                    new_group = pd.concat([gp, group], ignore_index=False)
-                    new_group.sort_index()
-                    df_dict[ticker] = new_group
-                    
-                else:
-                    df_dict[ticker] = group
-                    
-                    
-
-        # -----------------------------
-        # FINAL FLUSH
-        # -----------------------------
-        # if df_dict:
-        #     trades = strategy_fn(df_dict)
-        #     save_trades(trades)
-        #     total_trades += len(trades)
-
-        end_time = tm.perf_counter()
-
-        print(
-            f"⏰ Tiempo total ({strategy_fn.__name__}): "
-            f"{end_time - start_time:.2f}s | "
-            f"Total trades: {total_trades}"
-        )
-
-        print(f'Finalizing with {index} iterations')
-
-        return total_trades
-
-    return wrapper
-
-def strategy_pipeline_out_of_sample(strategy_fn):
-    """
-    Decorador de pipeline para estrategias que operan sobre df_dict
-    """
-    @wraps(strategy_fn)
-    def wrapper():
-        # -----------------------------
-        # LOAD DATA
-        # -----------------------------
-        df = pd.read_parquet('backtest_dataset/out_of_sample/gappers_backtest_dataset_5min_out_of_sample.parquet')
-
-        df['date'] = pd.to_datetime(df['date'])
-        #df['date_v1'] = pd.to_datetime(df['date'])
-        #df = df.set_index('date')
-        groups = df.groupby(['ticker','date_str'])
-
-        print(f'Total of groups: {len(groups)}')
-
-        counter = 0
-        df_dict = {}
-        index = 0
-        total_trades = 0
-
-        start_time = tm.perf_counter()
-
-        # -----------------------------
-        # MAIN LOOP
-        # -----------------------------
-        for (ticker,date_str), group in groups:
-            
-            group = group.set_index('date')
-            #group = group.sort_index()
-            len_group = len(group)
-            #print(group)
-
-            if counter >= 100_000:
-                index += 1
-                print(
-                    f'Processing backtest for {len(df_dict)} tickers '
-                    f'at iteration {index}...'
-                )
-                #print(df_dict)
-                
-                trades = strategy_fn(df_dict)
-                save_trades(trades , path="vectorbt_trades/out_of_sample")
-
-                total_trades += len(trades)
-
-                counter = 0
-                df_dict = {}
-
-            if len_group > 50:
-                counter += len_group
-                if ticker in df_dict:
-                    gp = df_dict[ticker]
-                    new_group = pd.concat([gp, group], ignore_index=False)
-                    new_group.sort_index()
-                    df_dict[ticker] = new_group
-                    
-                else:
-                    df_dict[ticker] = group
-                    
-                    
-
-        # -----------------------------
-        # FINAL FLUSH
-        # -----------------------------
-        # if df_dict:
-        #     trades = strategy_fn(df_dict)
-        #     save_trades(trades)
-        #     total_trades += len(trades)
-
-        end_time = tm.perf_counter()
-
-        print(
-            f"⏰ Tiempo total ({strategy_fn.__name__}): "
-            f"{end_time - start_time:.2f}s | "
-            f"Total trades: {total_trades}"
-        )
-
-        print(f'Finalizing with {index} iterations')
-
-        return total_trades
-
-    return wrapper
-
-# ======= decorator to apply to all strategies =========
-def strategy_pipeline_dchain(strategy_fn):
-    """
-    Decorador de pipeline para estrategias que operan sobre df_dict
-    """
-    @wraps(strategy_fn)
-    def wrapper():
-        # -----------------------------
-        # LOAD DATA
-        # -----------------------------
-        df = pd.read_parquet('backtest_dataset/dataset/gappers_backtest_dataset_trailing_5min.parquet')
-
-        df['date'] = pd.to_datetime(df['date'])
-        #df['date_v1'] = pd.to_datetime(df['date'])
-        #df = df.set_index('date')
-        groups = df.groupby(['ticker','date_str'])
-
-        print(f'Total of groups: {len(groups)}')
-
-        counter = 0
-        df_dict = {}
-        index = 0
-        total_trades = 0
-
-        start_time = tm.perf_counter()
-
-        # -----------------------------
-        # MAIN LOOP
-        # -----------------------------
-        for (ticker,date_str), group in groups:
-            
-            group = group.dropna(
-                subset=["donchian_upper", "donchian_lower", "donchian_basis"]
-            )
-            group = group.set_index('date')
-            #group = group.sort_index()
-            len_group = len(group)
-            #print(group)
-
-            if counter >= 100_000:
-                index += 1
-                print(
-                    f'Processing backtest for {len(df_dict)} tickers '
-                    f'at iteration {index}...'
-                )
-                #print(df_dict)
-                
-                trades = strategy_fn(df_dict)
-                save_trades(trades,path="vectorbt_trades/in_sample")
-
-                total_trades += len(trades)
-
-                counter = 0
-                df_dict = {}
-
-            if len_group > 50:
-                counter += len_group
-                if ticker in df_dict:
-                    gp = df_dict[ticker]
-                    new_group = pd.concat([gp, group], ignore_index=False)
-                    new_group.sort_index()
-                    df_dict[ticker] = new_group
-                    
-                else:
-                    df_dict[ticker] = group
-                    
-                    
-
-        # -----------------------------
-        # FINAL FLUSH
-        # -----------------------------
-        # if df_dict:
-        #     trades = strategy_fn(df_dict)
-        #     save_trades(trades)
-        #     total_trades += len(trades)
-
-        end_time = tm.perf_counter()
-
-        print(
-            f"⏰ Tiempo total ({strategy_fn.__name__}): "
-            f"{end_time - start_time:.2f}s | "
-            f"Total trades: {total_trades}"
-        )
-
-        print(f'Finalizing with {index} iterations')
-
-        return total_trades
-
-    return wrapper
-
-
-# ======= decorator to apply to all strategies =========
-def strategy_pipeline_dchain_out_of_sample(strategy_fn):
-    """
-    Decorador de pipeline para estrategias que operan sobre df_dict
-    """
-    @wraps(strategy_fn)
-    def wrapper():
-        # -----------------------------
-        # LOAD DATA
-        # -----------------------------
-        df = pd.read_parquet('backtest_dataset/out_of_sample/gappers_backtest_dataset_trailing_5min_out_of_sample.parquet')
-
-        df['date'] = pd.to_datetime(df['date'])
-        #df['date_v1'] = pd.to_datetime(df['date'])
-        #df = df.set_index('date')
-        groups = df.groupby(['ticker','date_str'])
-
-        print(f'Total of groups: {len(groups)}')
-
-        counter = 0
-        df_dict = {}
-        index = 0
-        total_trades = 0
-
-        start_time = tm.perf_counter()
-
-        # -----------------------------
-        # MAIN LOOP
-        # -----------------------------
-        for (ticker,date_str), group in groups:
-            
-            group = group.dropna(
-                subset=["donchian_upper", "donchian_lower", "donchian_basis"]
-            )
-            group = group.set_index('date')
-            #group = group.sort_index()
-            len_group = len(group)
-            #print(group)
-
-            if counter >= 100_000:
-                index += 1
-                print(
-                    f'Processing backtest for {len(df_dict)} tickers '
-                    f'at iteration {index}...'
-                )
-                #print(df_dict)
-                
-                trades = strategy_fn(df_dict)
-                save_trades(trades,path="vectorbt_trades/out_of_sample")
-
-                total_trades += len(trades)
-
-                counter = 0
-                df_dict = {}
-
-            if len_group > 50:
-                counter += len_group
-                if ticker in df_dict:
-                    gp = df_dict[ticker]
-                    new_group = pd.concat([gp, group], ignore_index=False)
-                    new_group.sort_index()
-                    df_dict[ticker] = new_group
-                    
-                else:
-                    df_dict[ticker] = group
-                    
-                    
-
-        # -----------------------------
-        # FINAL FLUSH
-        # -----------------------------
-        # if df_dict:
-        #     trades = strategy_fn(df_dict)
-        #     save_trades(trades)
-        #     total_trades += len(trades)
-
-        end_time = tm.perf_counter()
-
-        print(
-            f"⏰ Tiempo total ({strategy_fn.__name__}): "
-            f"{end_time - start_time:.2f}s | "
-            f"Total trades: {total_trades}"
-        )
-
-        print(f'Finalizing with {index} iterations')
-
-        return total_trades
-
-    return wrapper
+    if trades is None or isinstance(trades, pd.DataFrame) == False or len(trades) == 0 :
+        return
+    
+    if 'strategy' in trades.columns:
+        
+        # Agrupar por la columna 'strategy'
+        grouped = trades.groupby('strategy')
+
+        # Iterar por cada grupo
+        for strategy_name, group_df in grouped:
+            #print("Strategy:", strategy_name)
+            #print(group_df)  # Aquí tienes el DataFrame solo de esa estrategia
+            if append:
+                utils_helpers.append_single_parquet(df=group_df, path=file_path)
+            else:  
+                group_df.to_parquet(path=file_path)
+        
+    else:
+        print("====== el dataframe trades no tiene la column: strategy , la cual contiene el nombre de la estrategia que se esta probando")
+    
+    
+    
+    return
 
 
 # ====== examples code ======= 
 
-def backest_mutlipe_tickers(df):
-    
-    data = df.copy()
-    
-    data = data.set_index('date').sort_index()
-    grouped_data = data.groupby('date_str')
-    
-    index = 0
-    for _, group in grouped_data:
-        print(f"Processing ticker: ")
-        print(group)
-        # Aquí puedes llamar a tu función de backtest para cada grupo
-        #trades = pipeline_backtest_dataset(group)
-        #print(trades)
-        index += 1
-        if index >= 5:  # Limitar a 2 tickers para este ejemplo
-            break
-    
-    return trades
-
-def pipeline_backtest_dataset(df_5min):
-    tickers = ['SIDU']
-    atr = utils_helpers.compute_atr(df_5min)
-    df_5min['atr'] = atr
-    data = df_5min.set_index('date').sort_index()
-    mask_930 = data.index.strftime("%H:%M") == "09:30"
-    # -----------------------------
-    # 2️⃣ Definir entradas, SL y TP
-    # -----------------------------
-    entries = pd.Series(False, index=data.index)
-    entries.loc[mask_930] = True
-
-
-
-    entry_price = data['open']
-
-    tp_price = entry_price * (1 - 0.15)
-    sl_price = entry_price + 3.5 * data['atr']
-
-    tp_stop = pd.Series(np.nan, index=data.index)
-    sl_stop = pd.Series(np.nan, index=data.index)
-
-    tp_stop.loc[mask_930] = (
-        entry_price.loc[mask_930] - tp_price.loc[mask_930]
-    ) / entry_price.loc[mask_930]
-
-    sl_stop.loc[mask_930] = (
-        sl_price.loc[mask_930] - entry_price.loc[mask_930]
-    ) / entry_price.loc[mask_930]
-
-
-    # -------------------------------------------------
-    pf = vbt.Portfolio.from_signals(
-        close=data['close'],
-        high=data['high'],
-        low=data['low'],
-        entries=entries,
-        exits=False,
-        size=1,          # short 1 share
-        tp_stop=tp_stop,
-        sl_stop=sl_stop,
-        init_cash=0,
-        direction='shortonly',
-        freq='5min'
-    )
-
-    # -----------------------------
-    # 4️⃣ Calcular PnL en R
-    # -----------------------------
-    trades =  pf.trades.records_readable
-   
-    return trades
-
-def pipeline_backtest_dataset_multiple_tps(df_5min):
-    
-    tickers = ['SIDU']
-    atr = utils_helpers.compute_atr(df_5min)
-    df_5min['atr'] = atr
-    data = df_5min.set_index('date').sort_index()
-    mask_930 = data.index.strftime("%H:%M") == "09:30"
-    # -----------------------------
-    # 2️⃣ Definir entradas, SL y TP
-    # -----------------------------
-    entries = pd.Series(False, index=data.index)
-    entries.loc[mask_930] = True
-    
-    tp_pcts = np.array([0.15, 0.20, 0.25])
-
-    entry_price = data['open']
-    sl_price = entry_price + 3.5 * data['atr']
-
-    
-    
-    tp_price = entry_price.values[:, None] * (1 - tp_pcts)
-    
-    
-    tp_stop = np.full(tp_price.shape, np.nan)
-    sl_stop = np.full(tp_price.shape, np.nan)
-    
-    # Solo en 9:30
-    mask = mask_930
-
-    tp_stop[mask, :] = (
-        entry_price.values[mask, None] - tp_price[mask, :]
-    ) / entry_price.values[mask, None]
-
-    sl_stop[mask, :] = (
-        sl_price.values[mask, None] - entry_price.values[mask, None]
-    ) / entry_price.values[mask, None]
-    
-    entries = np.zeros((len(data), len(tp_pcts)), dtype=bool)
-    entries[mask, :] = True
-    
-    # -------------------------------------------------
-    pf = vbt.Portfolio.from_signals(
-        close=data['close'],
-        high=data['high'],
-        low=data['low'],
-        entries=entries,
-        exits=False,
-        size=1,          # short 1 share
-        tp_stop=tp_stop,
-        sl_stop=sl_stop,
-        init_cash=0,
-        direction='shortonly',
-        freq='5min'
-    )
-
-    trades =  pf.trades.records_readable
-   
-    return trades
-    
-def backtest_multiple_dias(ticker="SIDU"):
-    
-    dias = ['2025-12-26', '2025-12-29']
-    df_dict = {}
-    
-    for d in dias:
-        _from = pd.to_datetime(d)
-        _to = pd.to_datetime(d)
-        (df3, _) = utils_helpers.get_data_5min_for_backtest(ticker, _from.strftime("%Y-%m-%d"), _to.strftime("%Y-%m-%d"))
-        df3['ticker'] = ticker
-        atr = utils_helpers.compute_atr(df3)
-        df3['atr'] = atr
-        df3['date_str'] = date_str  
-        df3 = df3.set_index('date').sort_index()
-        df_dict.update({d: df3})
-        
-    index_master = pd.DatetimeIndex([])
-
-    for d in dias:
-        index_master = index_master.union(df_dict[d].index)
-
-    index_master = index_master.sort_values()
-    index_master = pd.to_datetime(index_master)   # <--- esto es clave
-    
-    n_bars = len(index_master)
-    n_tickers = 1 
-    
-    open_arr  = np.full((n_bars, n_tickers), np.nan)
-    high_arr  = np.full_like(open_arr, np.nan)
-    low_arr   = np.full_like(open_arr, np.nan)
-    close_arr = np.full_like(open_arr, np.nan)
-    atr_arr   = np.full_like(open_arr, np.nan)
-
-    # Rellenar arrays con datos por día
-    for d in dias:
-        df = df_dict[d].reindex(index_master)  # rellena NaN donde no hay datos
-        idx_valid = ~df['open'].isna()
-        open_arr[idx_valid, 0]  = df.loc[idx_valid, 'open'].values
-        high_arr[idx_valid, 0]  = df.loc[idx_valid, 'high'].values
-        low_arr[idx_valid, 0]   = df.loc[idx_valid, 'low'].values
-        close_arr[idx_valid, 0] = df.loc[idx_valid, 'close'].values
-        atr_arr[idx_valid, 0]   = df.loc[idx_valid, 'atr'].values
-            
-    mask_930 = np.array([t.strftime("%H:%M")=="09:30" for t in index_master])
-    entries = np.zeros((n_bars, n_tickers), dtype=bool)
-    entries[mask_930, :] = ~np.isnan(open_arr[mask_930, :])  # solo donde hay datos
-
-    tp_price = open_arr * (1 - 0.15)          # TP 15%
-    sl_price = open_arr + 3.5 * atr_arr       # SL = entry + 3.5ATR
-    
-    # Stops relativos para Vectorbt
-    tp_stop = np.full_like(tp_price, np.nan)
-    sl_stop = np.full_like(sl_price, np.nan)
-
-    tp_stop[mask_930, :] = (open_arr[mask_930,:] - tp_price[mask_930,:]) / open_arr[mask_930,:]
-    sl_stop[mask_930, :] = (sl_price[mask_930,:] - open_arr[mask_930,:]) / open_arr[mask_930,:]
-    
-    # -------------------------------------------------
-    pf = vbt.Portfolio.from_signals(
-        close=close_arr,
-        high=high_arr,
-        low=low_arr,
-        entries=entries,
-        exits=False,
-        size=1,          # short 1 share
-        tp_stop=tp_stop,
-        sl_stop=sl_stop,
-        init_cash=0,
-        direction='shortonly',
-        freq='5min'
-    )
-    
-    trades =  pf.trades.records_readable
-    trades['Ticker'] = ticker
-    print(trades)
-    return trades
+  
     
 def backtest_multiple_dias_vars(ticker="SIDU"):
     
@@ -1216,8 +690,7 @@ def backtest_multiple_dias_vars(ticker="SIDU"):
     return trades
 
 # ==== short strategies =======
-#@strategy_pipeline
-@strategy_pipeline_out_of_sample
+
 def gap_crap_strategy(f_dict):
     """
     short at the open 
@@ -1326,133 +799,13 @@ def gap_crap_strategy(f_dict):
         init_cash=0,
         freq='5min'
     )   
-    
-    wrapper = {
-            "trades":pf.trades.records_readable,
-            "col_meta": col_meta,
-            "index_master": index_master,
-            "atr_arr":atr_arr,
-            "rvol_arr":rvol_arr,
-            "prev_day_close_arr":prev_day_close_arr,
-            "volume_arr": volume_arr 
-        }
         
-    trades = modify_trades_columns(params=wrapper, strategy_name_prefix='gap_and_crap_strategy' )
-    return trades   
+    trades = pf.trades.records_readable
 
-
-def gap_crap_strategy_v1(f_dict):
-    """
-    short at the open 
-    1 take profit at 15%
-    1 stop loss at 3.5 ATR
-    params: f_dict: {ticker: df_5m, ...}
-    """
-    
-    print("Starting gap_crap_strategy backtest...")
-
-    tp_list = [0.15, 0.20]       # TP relativos
-    sl_list = [3.5, 3.5]         # SL en múltiplos de ATR
-    gap_list = [0.5, 0.5]         # GAPs list to 
-    
-    all_params = prepare_params_and_vectors_for_gappers(f_dict,gap_list, tp_list, sl_list)
-   
-    tp_sl_gap_pairs = all_params['tp_sl_gap_pairs']
-    n_params = all_params['n_params']
-    index_master = all_params['index_master']
-    n_tickers = all_params['n_tickers']
-    n_cols = all_params['n_cols']
-    n_bars = all_params['n_bars']
-    open_arr  = all_params['open_arr']
-    high_arr  = all_params['high_arr']
-    low_arr   = all_params['low_arr']
-    close_arr = all_params['close_arr']
-    atr_arr   = all_params['atr_arr']
-    volume_arr = all_params['volume_arr']
-    rvol_arr   = all_params['rvol_arr']
-    prev_day_close_arr = all_params['prev_day_close_arr']
-    col = all_params['col']
-    col_meta = all_params['col_meta']
-    
-    # --------------------------------------------------
-    # Inicializar entradas
-    # --------------------------------------------------
-    entries = np.zeros((n_bars, n_cols), dtype=bool)
-
-    # Usamos 9:25 para evitar lookahead bias (close 9:25 = open 9:30)
-    mask_930 = np.array([t.strftime("%H:%M") == "09:25" for t in index_master])
-
-    # --------------------------------------------------
-    # Gap % vs previous_day_close
-    # --------------------------------------------------
-    gap_vals = np.array([m["gap"] for m in col_meta])
-
-    gap_pct = np.divide(
-        close_arr - prev_day_close_arr,
-        prev_day_close_arr,
-        out=np.zeros_like(close_arr, dtype=float),
-        where=prev_day_close_arr > 0
-    )
-    
-    # Condición de gap: cada columna usa su GAP específico
-    gap_cond = (gap_pct >= gap_vals) & (gap_pct <= 5.0)
-    
-    # Opcionales: volumen y rvol
-    vol_cond  = volume_arr > 40_000
-    rvol_cond = rvol_arr >= 3
-    
-    # --------------------------------------------------
-    # Entradas
-    # --------------------------------------------------
-    entries[mask_930, :] = (
-        ~np.isnan(close_arr[mask_930, :]) &
-        gap_cond[mask_930, :] &
-        vol_cond[mask_930, :] &
-        rvol_cond[mask_930, :]
-    )
-
-    # --------------------------------------------------
-    # TAKE PROFIT y STOP LOSS
-    # --------------------------------------------------
-    # TP: ya definido por cada columna
-    tp_vals = np.array([m["tp"] for m in col_meta])
-    sl_vals = np.array([3.5 for m in col_meta])  # SL = 3.5*ATR para todos
-
-    tp_price = close_arr * (1 - tp_vals)         # short
-    sl_price = close_arr + sl_vals * atr_arr    # stop sobre open + 3.5*ATR
-
-    # Stop en % para vectorbt
-    tp_stop = np.full_like(close_arr, np.nan)
-    sl_stop = np.full_like(close_arr, np.nan)
-
-    tp_stop[mask_930, :] = (close_arr[mask_930, :] - tp_price[mask_930, :]) / close_arr[mask_930, :]
-    sl_stop[mask_930, :] = (sl_price[mask_930, :] - close_arr[mask_930, :]) / close_arr[mask_930, :]
-
-    # Por si quieres guardar los precios absolutos
-    stop_l = sl_price[mask_930, :]
-    
-    forced_exit = np.zeros_like(entries, dtype=bool)
-    
-    forced_exit = generate_signal_to_force_close_EOD(forced_exit,index_master)
-
-    pf = vbt.Portfolio.from_signals(
-        close=close_arr,
-        high=high_arr,
-        low=low_arr,
-        entries=entries,
-        exits=forced_exit,
-        size=1,
-        direction='shortonly',
-        tp_stop=tp_stop,
-        sl_stop=sl_stop,
-        init_cash=0,
-        freq='5min'
-    )   
-    
     trades = trades = (
-    pf.trades.records_readable
-      .replace([np.inf, -np.inf], np.nan)
-      .dropna()).copy()
+    trades
+    .replace([np.inf, -np.inf], np.nan)
+    .dropna()).copy()
 
     trades = trades.rename(columns={
         'Avg Entry Price': 'entry_price',
@@ -1464,7 +817,7 @@ def gap_crap_strategy_v1(f_dict):
     col_meta_df = pd.DataFrame(col_meta).set_index('column')
     trades = trades.join(col_meta_df, on='Column')
     trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
-    trades['strategy'] = 'gap_and_crap_'+ trades['tp'].astype(str) + "_" + trades['sl'].astype(str)
+    trades['strategy'] = f'gap_and_crap_strategy_'+ trades['tp'].astype(str) + "_" + trades['sl'].astype(str)+ "_" + trades['gap'].astype(str)
     trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
     trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
     entry_idx = trades['Entry Timestamp'].values
@@ -1475,12 +828,12 @@ def gap_crap_strategy_v1(f_dict):
     trades['rvol_daily'] = rvol_arr[entry_idx, col_idx]
     trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
     trades['volume'] = volume_arr[entry_idx, col_idx]
- 
-    return trades[[ 'ticker', 'entry_price',
-       'exit_price','stop_loss_price', 'type', 'pnl',
-       'Return', 'rvol_daily',  'previous_day_close','volume','entry_time','exit_time','strategy']]
+    
+   
+    return reduce_trades_columns(trades)   
 
-@strategy_pipeline
+
+
 def short_exhaustion_strategy(f_dict):
     
     """
@@ -1630,7 +983,6 @@ def short_exhaustion_strategy(f_dict):
             False
         )
         
-        
         # Agrupar por día
         forced_exit = np.zeros_like(entries, dtype=bool)
         
@@ -1650,26 +1002,42 @@ def short_exhaustion_strategy(f_dict):
             freq='5min'
         )   
         
-         
-        wrapper = {
-            "trades":pf.trades.records_readable,
-            "col_meta": col_meta,
-            "index_master": index_master,
-            "atr_arr":atr_arr,
-            "rvol_arr":rvol_arr,
-            "prev_day_close_arr":prev_day_close_arr,
-            "volume_arr": volume_arr 
-        }
+        trades = pf.trades.records_readable
+        trades = trades = (
+        trades
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()).copy()
+
+        trades = trades.rename(columns={
+            'Avg Entry Price': 'entry_price',
+            'Avg Exit Price': 'exit_price',
+            'PnL': 'pnl',
+            'Direction':'type'
+        })
         
-        trades = modify_trades_columns(params=wrapper, strategy_name_prefix='short_exhaustion_strategy' )
-        return trades 
+        col_meta_df = pd.DataFrame(col_meta).set_index('column')
+        trades = trades.join(col_meta_df, on='Column')
+        trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
+        trades['strategy'] = f'short_exhaustion_strategy_'+ trades['tp'].astype(str) + "_" + trades['sl'].astype(str)+ "_" + trades['gap'].astype(str)
+        trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+        trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+        entry_idx = trades['Entry Timestamp'].values
+        col_idx   = trades['Column'].values
+        
+        atr_entry = atr_arr[entry_idx, col_idx]
+        trades['stop_loss_price'] = (trades['entry_price'] + trades['sl'] * atr_entry)
+        trades['rvol_daily'] = rvol_arr[entry_idx, col_idx]
+        trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
+        trades['volume'] = volume_arr[entry_idx, col_idx]
+        
+        return reduce_trades_columns(trades) 
     
     except Exception as e:
         print(" error found in   ---short_exhaustion_strategy--- ")
         print(e)
         return pd.DataFrame([])
 
-#@strategy_pipeline
+
 def short_vwap_pop_strategy(f_dict):
     """
     Short pops to vwap after the price was bellow vwap at least 25% 
@@ -1843,25 +1211,42 @@ def short_vwap_pop_strategy(f_dict):
             freq='5min'
         )   
         
-        wrapper = {
-            "trades":pf.trades.records_readable,
-            "col_meta": col_meta,
-            "index_master": index_master,
-            "atr_arr":atr_arr,
-            "rvol_arr":rvol_arr,
-            "prev_day_close_arr":prev_day_close_arr,
-            "volume_arr": volume_arr 
-        }
+        trades = pf.trades.records_readable
+        trades = trades = (
+        trades
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()).copy()
+
+        trades = trades.rename(columns={
+            'Avg Entry Price': 'entry_price',
+            'Avg Exit Price': 'exit_price',
+            'PnL': 'pnl',
+            'Direction':'type'
+        })
         
-        trades = modify_trades_columns(params=wrapper, strategy_name_prefix='short_vwap_pop_strategy' )
-        return trades 
+        col_meta_df = pd.DataFrame(col_meta).set_index('column')
+        trades = trades.join(col_meta_df, on='Column')
+        trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
+        trades['strategy'] = f'short_vwap_pop_strategy_'+ trades['tp'].astype(str) + "_" + trades['sl'].astype(str)+ "_" + trades['gap'].astype(str)
+        trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+        trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+        entry_idx = trades['Entry Timestamp'].values
+        col_idx   = trades['Column'].values
+        
+        atr_entry = atr_arr[entry_idx, col_idx]
+        trades['stop_loss_price'] = (trades['entry_price'] + trades['sl'] * atr_entry)
+        trades['rvol_daily'] = rvol_arr[entry_idx, col_idx]
+        trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
+        trades['volume'] = volume_arr[entry_idx, col_idx]
+        
+        return reduce_trades_columns(trades) 
     
     except Exception as e:
         print(" error found in   ---short_vwap_pop_strategy--- ")
         print(e)
         return pd.DataFrame([])
  
-#@strategy_pipeline  
+
 def short_explosives_pops(f_dict):
     
     tp_list  = [0.15, 0.20, 0.25]
@@ -1995,18 +1380,35 @@ def short_explosives_pops(f_dict):
             freq='5min'
         )   
         
-        wrapper = {
-            "trades":pf.trades.records_readable,
-            "col_meta": col_meta,
-            "index_master": index_master,
-            "atr_arr":atr_arr,
-            "rvol_arr":rvol_arr,
-            "prev_day_close_arr":prev_day_close_arr,
-            "volume_arr": volume_arr 
-        }
+        trades = pf.trades.records_readable
+        trades = trades = (
+        trades
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()).copy()
+
+        trades = trades.rename(columns={
+            'Avg Entry Price': 'entry_price',
+            'Avg Exit Price': 'exit_price',
+            'PnL': 'pnl',
+            'Direction':'type'
+        })
         
-        trades = modify_trades_columns(params=wrapper, strategy_name_prefix='short_explosives_pops' )
-        return trades 
+        col_meta_df = pd.DataFrame(col_meta).set_index('column')
+        trades = trades.join(col_meta_df, on='Column')
+        trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
+        trades['strategy'] = f'short_explosives_pops_strategy_'+ trades['tp'].astype(str) + "_" + trades['sl'].astype(str)+ "_" + trades['gap'].astype(str)
+        trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+        trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+        entry_idx = trades['Entry Timestamp'].values
+        col_idx   = trades['Column'].values
+        
+        atr_entry = atr_arr[entry_idx, col_idx]
+        trades['stop_loss_price'] = (trades['entry_price'] + trades['sl'] * atr_entry)
+        trades['rvol_daily'] = rvol_arr[entry_idx, col_idx]
+        trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
+        trades['volume'] = volume_arr[entry_idx, col_idx]
+        
+        return reduce_trades_columns(trades) 
 
     except Exception as e:
         print(" error found in   --- short_explosives_pops --- ")
@@ -2014,8 +1416,6 @@ def short_explosives_pops(f_dict):
         return pd.DataFrame([])
        
 
-#@strategy_pipeline
-@strategy_pipeline_out_of_sample 
 def backside_short(f_dict):
     """
     Short cuando el momentum comienza a fallar (backside)
@@ -2221,27 +1621,44 @@ def backside_short(f_dict):
             init_cash=0,
             freq='5min'
         )
-        wrapper = {
-            "trades":pf.trades.records_readable,
-            "col_meta": col_meta,
-            "index_master": index_master,
-            "atr_arr":atr_arr,
-            "rvol_arr":rvol_arr,
-            "prev_day_close_arr":prev_day_close_arr,
-            "volume_arr": volume_arr 
-        }
         
-        trades = modify_trades_columns(params=wrapper, strategy_name_prefix='short_backside_strategy' )
-        return trades   
+        trades = pf.trades.records_readable
+        trades = trades = (
+        trades
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()).copy()
+
+        trades = trades.rename(columns={
+            'Avg Entry Price': 'entry_price',
+            'Avg Exit Price': 'exit_price',
+            'PnL': 'pnl',
+            'Direction':'type'
+        })
+        
+        col_meta_df = pd.DataFrame(col_meta).set_index('column')
+        trades = trades.join(col_meta_df, on='Column')
+        trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
+        trades['strategy'] = f'backside_short_strategy_'+ trades['tp'].astype(str) + "_" + trades['sl'].astype(str)+ "_" + trades['gap'].astype(str)
+        trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+        trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+        entry_idx = trades['Entry Timestamp'].values
+        col_idx   = trades['Column'].values
+        
+        atr_entry = atr_arr[entry_idx, col_idx]
+        trades['stop_loss_price'] = (trades['entry_price'] + trades['sl'] * atr_entry)
+        trades['rvol_daily'] = rvol_arr[entry_idx, col_idx]
+        trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
+        trades['volume'] = volume_arr[entry_idx, col_idx]
+        
+        return reduce_trades_columns(trades) 
         
     except Exception as e:
         print(" error found in   --- backside_short --- ")
         print(e)
         return pd.DataFrame([])
     
-#@strategy_pipeline_dchain
-#@strategy_pipeline_dchain_out_of_sample 
-def backside_short_trailing_dchain(f_dict):
+
+def backside_short_tp_dchain_stop(f_dict):
     """
     Short cuando el momentum comienza a fallar (backside)
     condiciones:
@@ -2470,19 +1887,34 @@ def backside_short_trailing_dchain(f_dict):
             init_cash=0,
             freq='5min'
         )
-        wrapper = {
-            "trades":pf.trades.records_readable,
-            "col_meta": col_meta,
-            "index_master": index_master,
-            "atr_arr":atr_arr,
-            "rvol_arr":rvol_arr,
-            "prev_day_close_arr":prev_day_close_arr,
-            "volume_arr": volume_arr ,
-            'donchian_upper_arr':donchian_upper_arr
-        }
         
-        trades = modify_trades_columns_trailing(params=wrapper, strategy_name_prefix='short_backside_trailing_strategy' )
-        return trades   
+        trades = pf.trades.records_readable
+        trades = trades = (
+        trades
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()).copy()
+
+        trades = trades.rename(columns={
+            'Avg Entry Price': 'entry_price',
+            'Avg Exit Price': 'exit_price',
+            'PnL': 'pnl',
+            'Direction':'type'
+        })
+        
+        col_meta_df = pd.DataFrame(col_meta).set_index('column')
+        trades = trades.join(col_meta_df, on='Column')
+        trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
+        trades['strategy'] = f'backside_short_tp_dchain_stop_'+ trades['tp'].astype(str) + "_"+ trades['gap'].astype(str)
+        trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+        trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+        entry_idx = trades['Entry Timestamp'].values
+        col_idx   = trades['Column'].values
+        
+        atr_entry = atr_arr[entry_idx, col_idx]
+        trades['stop_loss_price'] = donchian_upper_arr[entry_idx, col_idx] 
+        trades['rvol_daily'] = rvol_arr[entry_idx, col_idx]
+        trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
+        trades['volume'] = volume_arr[entry_idx, col_idx]
         
     except Exception as e:
         print(" error found in   --- backside_short --- ")
@@ -2495,8 +1927,7 @@ def backside_short_trailing_dchain(f_dict):
 # Notas!!!!!!!:   
 #  * probar salidas en red candles con big upper tail
 #  * evitar entradas despues de 5 velas verdes consecutivas (parabolic push)
-#@strategy_pipeline_dchain
-@strategy_pipeline_dchain_out_of_sample 
+
 def small_range_breakout_long_strategy(f_dict):
     """
     Long breakout de rango pequeño
@@ -2589,7 +2020,6 @@ def small_range_breakout_long_strategy(f_dict):
 
         # evitar basura en las primeras filas
         avg_vol_5[:5, :] = np.nan
-        
         
         volume_cond = (volume_arr >= 10000) & (volume_arr >= 2 * avg_vol_5) 
         
@@ -2693,25 +2123,258 @@ def small_range_breakout_long_strategy(f_dict):
             init_cash=0,
             freq='5min'
         )
-        wrapper = {
-            "trades":pf.trades.records_readable,
-            "col_meta": col_meta,
-            "index_master": index_master,
-            "atr_arr":atr_arr,
-            "rvol_arr":rvol_arr,
-            "prev_day_close_arr":prev_day_close_arr,
-            "volume_arr": volume_arr ,
-            'donchian_upper_arr':donchian_upper_arr
-        }
         
-        trades = modify_trades_columns_trailing(params=wrapper, strategy_name_prefix='small_range_breakout_long_strategy' )
-        return trades   
+        trades = pf.trades.records_readable
+        trades = trades = (
+        trades
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()).copy()
+
+        trades = trades.rename(columns={
+            'Avg Entry Price': 'entry_price',
+            'Avg Exit Price': 'exit_price',
+            'PnL': 'pnl',
+            'Direction':'type'
+        })
+        
+        col_meta_df = pd.DataFrame(col_meta).set_index('column')
+        trades = trades.join(col_meta_df, on='Column')
+        trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
+        trades['strategy'] = f'small_range_breakout_long_strategy_'+ trades['tp'].astype(str) + "_"+ trades['gap'].astype(str)
+        trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+        trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+        entry_idx = trades['Entry Timestamp'].values
+        col_idx   = trades['Column'].values
+        
+        atr_entry = atr_arr[entry_idx, col_idx]
+        trades['stop_loss_price'] = donchian_lower_arr[entry_idx, col_idx] 
+        trades['rvol_daily'] = rvol_arr[entry_idx, col_idx]
+        trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
+        trades['volume'] = volume_arr[entry_idx, col_idx]
+        
+        
+        return reduce_trades_columns(trades)   
         
     except Exception as e:
-        print(" error found in   --- small_range_breakout_strategy --- ")
+        print(" error found in   --- small_range_breakout_long_strategy  --- ")
         print(e)
         return pd.DataFrame([])
-   
+ 
+def small_range_breakout_long_strategy_with_tp_factor(f_dict):
+    """
+    Long breakout de rango pequeño
+    Timeframe: 5 minutos
+    condiciones:
+    - rompe upper band (donchain channel) de rango de 5 velas, offset 1 vela
+    - volumen de la vela que rompe de al menos 10k acciones
+    - volumen de la vela que rompe mayor a 2 veces el volumen promedio de 5 velas
+    - take profit: RR base, ex: 2:1, 3:1, 4:1
+    - stop loss: Donchian lower band de rango de 5 velas, offset 1 vela
+    params: f_dict: {ticker: df_5m, ...}
+    """
+    
+    try:
+        # ==================================================
+        # PARAMETROS
+        # ==================================================
+        tp_list  = [1]        # R-multiple
+        gap_list = [0.1]      # Gap mínimo
+
+        # ==================================================
+        # PREPARAR VECTORES
+        # ==================================================
+        all_params = prepare_params_and_vectors_for_gappers_with_trailing(
+            f_dict,
+            gap_list,
+            tp_list
+        )
+
+        tp_sl_gap_pairs     = all_params['tp_sl_gap_pairs']
+        n_params            = all_params['n_params']
+        index_master        = all_params['index_master']
+        n_tickers           = all_params['n_tickers']
+        n_cols              = all_params['n_cols']
+        n_bars              = all_params['n_bars']
+
+        open_arr            = all_params['open_arr']
+        high_arr            = all_params['high_arr']
+        low_arr             = all_params['low_arr']
+        close_arr           = all_params['close_arr']
+        atr_arr             = all_params['atr_arr']
+        volume_arr          = all_params['volume_arr']
+        rvol_arr            = all_params['rvol_arr']
+        prev_day_close_arr  = all_params['prev_day_close_arr']
+
+        col_meta            = all_params['col_meta']
+        vwap_arr  = all_params['vwap_arr']
+        time_mask = all_params['time_mask']
+        
+        donchian_upper_arr =  all_params['donchian_upper_arr']
+        donchian_basis_arr =  all_params['donchian_basis_arr']
+        donchian_lower_arr = all_params['donchian_lower_arr']
+
+        # ==================================================
+        # VELAS
+        # ==================================================
+        green_curr = close_arr > open_arr
+
+        # ==================================================
+        # GAP %
+        # ==================================================
+        gap_vals = np.array([m["gap"] for m in col_meta])
+
+        gap_pct = np.divide(
+            close_arr - prev_day_close_arr,
+            prev_day_close_arr,
+            out=np.zeros_like(close_arr, dtype=float),
+            where=prev_day_close_arr > 0
+        )
+
+        gap_cond = (gap_pct >= gap_vals) & (gap_pct <= 5.0)
+
+        # ==================================================
+        # VOLUMEN
+        # ==================================================
+        vol_1 = np.roll(volume_arr, 1, axis=0)
+        vol_2 = np.roll(volume_arr, 2, axis=0)
+        vol_3 = np.roll(volume_arr, 3, axis=0)
+        vol_4 = np.roll(volume_arr, 4, axis=0)
+        vol_5 = np.roll(volume_arr, 5, axis=0)
+
+        avg_vol_5 = (vol_1 + vol_2 + vol_3 + vol_4 + vol_5) / 5.0
+        avg_vol_5[:5, :] = np.nan
+
+        volume_cond = (volume_arr >= 10_000) & (volume_arr >= 2 * avg_vol_5)
+
+        # ==================================================
+        # FILTROS DE VELA
+        # ==================================================
+        body = np.abs(close_arr - open_arr)
+        upper_tail = high_arr - np.maximum(open_arr, close_arr)
+
+        not_parabolic_push = (body / open_arr) < 0.20
+
+        # ==================================================
+        # BREAKOUT DONCHIAN
+        # ==================================================
+        breakout_cond = close_arr > donchian_upper_arr
+
+        # ==================================================
+        # ENTRADAS LONG
+        # ==================================================
+        entries = (
+            gap_cond &
+            green_curr &
+            not_parabolic_push &
+            volume_cond &
+            breakout_cond &
+            time_mask[:, None]
+        )
+
+        # ==================================================
+        # PRECIO DE EJECUCION (OPEN SIGUIENTE VELA)
+        # ==================================================
+        entry_price = np.roll(open_arr, -1, axis=0)
+        entry_price[-1, :] = np.nan
+
+        entry_low = np.roll(low_arr, -1, axis=0)
+        #entry_low[-1, :] = np.nan
+        
+        entry_low = low_arr.copy()
+
+        # ==================================================
+        # RIESGO
+        # ==================================================
+        risk = entry_price - entry_low
+        risk = np.where(risk > 0, risk, np.nan)
+
+        # ==================================================
+        # TP / SL (SOLO DONDE HAY ENTRADA)
+        # ==================================================
+        tp_factor = np.array([m["tp"] for m in col_meta])
+
+        tp_price = entry_price + tp_factor * risk
+
+        sl_stop = np.full_like(entry_price, np.nan, dtype=float)
+        tp_stop = np.full_like(entry_price, np.nan, dtype=float)
+
+        valid_entries = entries & np.isfinite(risk)
+
+        sl_stop[valid_entries] = (entry_price[valid_entries] - entry_low[valid_entries]) / entry_price[valid_entries]
+        tp_stop[valid_entries] = (tp_price[valid_entries] - entry_price[valid_entries]) / entry_price[valid_entries]
+
+        sl_stop = np.where(sl_stop > 0, sl_stop, np.nan)
+        tp_stop = np.where(tp_stop > 0, tp_stop, np.nan)
+
+        # ==================================================
+        # FORCED EXIT EOD
+        # ==================================================
+        forced_exit = np.zeros_like(entries, dtype=bool)
+        forced_exit = generate_signal_to_force_close_EOD(
+            forced_exit,
+            index_master
+        )
+
+        exits = forced_exit
+
+        # ==================================================
+        # PORTFOLIO
+        # ==================================================
+        pf = vbt.Portfolio.from_signals(
+            close=close_arr,
+            high=high_arr,
+            low=low_arr,
+            entries=entries,
+            exits=exits,
+            price=entry_price,
+            direction='longonly',
+            sl_stop=sl_stop,
+            tp_stop=tp_stop,
+            size=1,
+            init_cash=0,
+            freq='5min'
+        )
+
+        
+        trades = pf.trades.records_readable 
+        trades = trades = (
+        trades
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()).copy()
+
+        trades = trades.rename(columns={
+            'Avg Entry Price': 'entry_price',
+            'Avg Exit Price': 'exit_price',
+            'PnL': 'pnl',
+            'Direction':'type'
+        })
+        
+       
+        col_meta_df = pd.DataFrame(col_meta).set_index('column')
+        trades = trades.join(col_meta_df, on='Column')
+        trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
+        trades['strategy'] = f'small_range_breakout_long_strategy_with_tp_factor_'+ trades['tp'].astype(str) + "_" + trades['gap'].astype(str)
+        trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+        trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+        entry_idx = trades['Entry Timestamp'].values
+        col_idx   = trades['Column'].values
+        
+        atr_entry = atr_arr[entry_idx, col_idx]
+        lows_stop = low_arr[entry_idx, col_idx]
+        trades['stop_loss_price'] = lows_stop
+        trades['rvol_daily'] = rvol_arr[entry_idx, col_idx]
+        trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
+        trades['volume'] = volume_arr[entry_idx, col_idx]
+        
+        
+
+        return  reduce_trades_columns(trades)    
+        
+    except Exception as e:
+        print(" error found in   --- small_range_breakout_long_strategy_with_tp_factor --- ")
+        print(e)
+        return pd.DataFrame([])
+    
 
 # ========  examples with data =========   
 
@@ -2842,6 +2505,10 @@ def exemple_with_api_data():
     date_str0 =  "2026-01-28"
     previous_day_close_0 = 1.18
     ticker='MRNO'
+    
+    date_str0 =  "2022-07-01"
+    previous_day_close_0 = 1.19
+    ticker='ADXN'
 
     (df0,_) = commons.prepare_data_parabolic_short_5min_v1(ticker, date_str0)
     df0['ticker'] = ticker
@@ -2868,15 +2535,23 @@ def exemple_with_api_data():
     #print(df_day_0.between_time("10:30","16:00"))
     f_dict ={ticker:df_day_0}
     
-    trades = small_range_breakout_long_strategy(f_dict)
+    # trades = gap_crap_strategy(f_dict)
+    # trades = short_exhaustion_strategy(f_dict)
+    # trades = short_vwap_pop_strategy(f_dict)
+    # trades = short_explosives_pops(f_dict)
+    # trades = backside_short(f_dict)
+    # trades = backside_short_tp_dchain_stop(f_dict)
+    # trades = small_range_breakout_long_strategy(f_dict)
+    trades = small_range_breakout_long_strategy_with_tp_factor(f_dict)
     
     
     
     #save_trades(trades)
     print(trades)
-    markers = commons.create_marker_from_signals_from_trades(trades)
-    utils_helpers.plot_trades_indicators(df1[df1["date"].dt.date == pd.to_datetime(date_str0).date()], markers, indicators=indicators )
-    
+    if len(trades) > 0:
+        markers = commons.create_marker_from_signals_from_trades(trades)
+        utils_helpers.plot_trades_indicators(df1[df1["date"].dt.date == pd.to_datetime(date_str0).date()], markers, indicators=indicators )
+        
     return
 
 
@@ -2896,7 +2571,7 @@ def exemple_with_local_data():
     # date_str0 =  "2026-01-05"
     # ticker =  'INBS'
     
-    df0  = pd.read_parquet('backtest_dataset/dataset/gappers_backtest_dataset_trailing_5min.parquet')
+    df0  = pd.read_parquet('backtest_dataset/in_sample/gappers_backtest_dataset_5min_in_sample.parquet')
     df0 = df0.dropna(
         subset=["donchian_upper", "donchian_lower", "donchian_basis"]
     )
@@ -2925,10 +2600,20 @@ def exemple_with_local_data():
     #print(df_day_0.between_time("9:30","16:00"))
     f_dict ={ticker:df_day_0}
     
-    trades = small_range_breakout_long_strategy(f_dict)
+    
+    # trades = gap_crap_strategy(f_dict)
+    # trades = short_exhaustion_strategy(f_dict)
+    # trades = short_vwap_pop_strategy(f_dict)
+    # trades = short_explosives_pops(f_dict)
+    # trades = backside_short(f_dict)
+    # trades = backside_short_tp_dchain_stop(f_dict)
+    # trades = small_range_breakout_long_strategy(f_dict)
+    trades = small_range_breakout_long_strategy_with_tp_factor(f_dict)
     
     # save_trades(trades)
-    print(trades)
+    print(trades[['ticker', 'type','entry_price',
+    'exit_price','stop_loss_price',  'pnl',
+    'Return','entry_time','exit_time','strategy']])
     markers = commons.create_marker_from_signals_from_trades(trades)
     utils_helpers.plot_trades_indicators(df1,markers, indicators= indicators )
     
@@ -2953,14 +2638,6 @@ def check_db():
     
     print(filtered[['ticker','open', 'previous_day_close', 'gap_prct','date_str',"volume", "cummulative_vol","RVOL_daily"]])
     
-def run_backest():
-    
-    #trades = gap_crap_strategy()
-    #trades = backside_short()
-    #trades = backside_short_trailing_dchain()
-    trades =  small_range_breakout_long_strategy()
-      
-    return trades
 
 # ============ stats =============
 
@@ -3009,15 +2686,321 @@ def run_stats_on_trades(sub_path='in_sample'):
     pprint(_stats)
    
     #print(trades)
+  
+def run_stats_on_first_stage_trades(path_to_trades="backtest_dataset", sample_type="in_sample", strategy_fn=backside_short_tp_dchain_stop):
     
+    folder_path = Path(f'{path_to_trades}/{sample_type}/trades/{strategy_fn.__name__}')
+    file_path = Path(f'{folder_path}/{strategy_fn.__name__}_{sample_type}_trades.parquet')
+    
+    if file_path.exists():
+        trades = pd.read_parquet(file_path)
+    else:
+        print(f"File {file_path} does not exist.")
+        return
+    
+    
+    trades['is_profit'] = trades['pnl'] > 0
+    trades['gap_prct'] = (trades['entry_price'] - trades['previous_day_close']) / trades['previous_day_close']
+    
+    groupedtrades = trades.groupby('strategy')
+    
+    trade_stats_list = []
+    
+    for strategy_name, group in groupedtrades:     
+        (_stats, df )= utils_helpers.stats(trades_df=group)
+        _stats['strategy'] = strategy_name
+        trade_stats_list.append(_stats)
+        #print(f"Stats for strategy: {strategy_name}")
+        #print("===================================")
+        #pprint(_stats)
+        #print("\n")
+        
+    table = pd.DataFrame(trade_stats_list)
+    table.to_parquet(f'{folder_path}/{strategy_fn.__name__}_{sample_type}_trade_stats.parquet', index=False)
+    print(table)
 
+def  run_stats_on_walk_fordward_trades(path_to_trades="backtest_dataset/walk_fordward", sample_type="in_sample", strategy_fn=backside_short_tp_dchain_stop):
+    
+    folder_path = Path(f'{path_to_trades}/trades/{strategy_fn.__name__}')
+    
+    all_trades = pd.DataFrame()
+    
+    for i in range(1,4):
+        file_path = Path(f'{folder_path}/walk_fordward_{sample_type}_{i}_trades.parquet')
+        
+        if file_path.exists():
+            trades = pd.read_parquet(file_path)
+            all_trades = pd.concat([all_trades, trades], ignore_index=True)
+        else:
+            print(f"File {file_path} does not exist.")
+            return
+        
+        all_trades['is_profit'] = all_trades['pnl'] > 0
+        all_trades['gap_prct'] = (all_trades['entry_price'] - all_trades['previous_day_close']) / all_trades['previous_day_close']
+        
+        groupedtrades = all_trades.groupby('strategy')
+        trade_stats_list = []
+    
+        for strategy_name, group in groupedtrades:     
+            (_stats, df )= utils_helpers.stats(trades_df=group)
+            _stats['strategy'] = strategy_name
+            trade_stats_list.append(_stats)
+        
+        table = pd.DataFrame(trade_stats_list)
+        table.to_parquet(f'{folder_path}/walk_fordward_{strategy_fn.__name__}_{sample_type}_{i}_trade_stats.parquet', index=False)   
+            
+        
+    
+   
+   
+   
+    #print(trades)
+# ============ first stage test =============
+  
+def run_first_stage_test(path="backtest_dataset",sample_type="in_sample", strategy_fn=backside_short_tp_dchain_stop, append_trades=True):
+    
+    file_path = Path(f'{path}/{sample_type}/gappers_backtest_dataset_5min_{sample_type}.parquet')
+    
+            
+    if file_path.exists():
+        df = pd.read_parquet(file_path)
+    else:
+        print(f"File {file_path} does not exist.")
+        
+        
+    folder_path = Path(f'{path}/{sample_type}/trades/{strategy_fn.__name__}')
+    folder_path.mkdir(parents=True, exist_ok=True)
+
+    df['date'] = pd.to_datetime(df['date'])
+    groups = df.groupby(['ticker','date_str'])
+
+    print(f'Total of groups: {len(groups)}')
+
+    counter = 0
+    df_dict = {}
+    index = 0
+    total_trades = 0
+
+    start_time = tm.perf_counter()
+
+    # -----------------------------
+    # MAIN LOOP
+    # -----------------------------
+    for (ticker,date_str), group in groups:
+        
+        group = group.set_index('date')
+        len_group = len(group)
+        
+
+        if counter >= 100_000:
+            index += 1
+            print(
+                f'Processing backtest for {len(df_dict)} tickers '
+                f'at iteration {index}...'
+            )
+            
+            print(counter, index, len(groups))
+            
+            trades = strategy_fn(df_dict)
+            print(trades)
+            save_trades_to_file(trades,file_path=f'{folder_path}/{strategy_fn.__name__}_{sample_type}_trades.parquet', append=append_trades) 
+            total_trades += len(trades)
+            print(f'Trades generated in iteration {index}: {len(trades)}')
+
+            counter = 0
+            df_dict = {}
+
+        if len_group > 50:
+            counter += len_group
+            if ticker in df_dict:
+                gp = df_dict[ticker]
+                new_group = pd.concat([gp, group], ignore_index=False)
+                new_group.sort_index()
+                df_dict[ticker] = new_group
+                
+            else:
+                df_dict[ticker] = group
+                
+                
+
+    # -----------------------------
+    # FINAL FLUSH
+    # -----------------------------
+    if index == 0 and counter > 0 and counter <= 100_000:
+        trades = strategy_fn(df_dict)
+        print(trades)
+        save_trades_to_file(trades,file_path=f'{folder_path}/{strategy_fn.__name__}_{sample_type}_trades.parquet', append=append_trades)
+        total_trades += len(trades)
+        print(f'Trades generated in iteration {index}: {len(trades)}')
+
+    end_time = tm.perf_counter()
+
+    print(
+        f"⏰ Tiempo total {sample_type} ({strategy_fn.__name__}): "
+        f"{end_time - start_time:.2f}s | "
+        f"Total trades: {total_trades}"
+    )
+
+    print(f'Finalizing with {index} iterations')
+    
+# ============ walk fordward test =============
+
+def run_walk_forward_test(path="backtest_dataset/walk_fordward", sample_type="in_sample",strategy_fn=backside_short_tp_dchain_stop, append_trades=True):
+    
+    folder_path = Path(f'{path}/trades/{strategy_fn.__name__}')
+    folder_path.mkdir(parents=True, exist_ok=True)
+   
+    for i in range(1,4):
+        
+        file_path = Path(f'{path}/walk_fordward_{sample_type}_{i}.parquet')
+                
+        if file_path.exists():
+            df = pd.read_parquet(file_path)
+        else:
+            print(f"File {file_path} does not exist.")
+
+        df['date'] = pd.to_datetime(df['date'])
+        groups = df.groupby(['ticker','date_str'])
+
+        print(f'Total of groups: {len(groups)}')
+
+        counter = 0
+        df_dict = {}
+        index = 0
+        total_trades = 0
+
+        start_time = tm.perf_counter()
+
+        # -----------------------------
+        # MAIN LOOP
+        # -----------------------------
+        for (ticker,date_str), group in groups:
+            
+            group = group.set_index('date')
+            len_group = len(group)
+            
+
+            if counter >= 100_000:
+                index += 1
+                print(
+                    f'Processing backtest for {len(df_dict)} tickers '
+                    f'at iteration {index}...'
+                )
+                
+                print(counter, index, len(groups))
+                
+                trades = strategy_fn(df_dict)
+                save_trades_to_file(trades,file_path=f'{folder_path}/walk_fordward_{sample_type}_{i}_trades.parquet', append=append_trades)
+                total_trades += len(trades)
+                print(f'Trades generated in iteration {index}: {len(trades)}')
+
+                counter = 0
+                df_dict = {}
+
+            if len_group > 50:
+                counter += len_group
+                if ticker in df_dict:
+                    gp = df_dict[ticker]
+                    new_group = pd.concat([gp, group], ignore_index=False)
+                    new_group.sort_index()
+                    df_dict[ticker] = new_group
+                    
+                else:
+                    df_dict[ticker] = group
+                    
+                
+        # -----------------------------
+        # FINAL FLUSH
+        # -----------------------------
+        if index == 0 and counter > 0 and counter <= 100_000:
+            trades = strategy_fn(df_dict)
+            save_trades_to_file(trades, file_path=f'{folder_path}/walk_fordward_{sample_type}_{i}_trades.parquet', append=append_trades)
+            total_trades += len(trades)
+            print(trades)
+            print(f'Trades generated in iteration {index}: {len(trades)}')
+
+        end_time = tm.perf_counter()
+
+        print(
+            f"⏰ Tiempo total {sample_type} ({strategy_fn.__name__}): "
+            f"{end_time - start_time:.2f}s | "
+            f"Total trades: {total_trades}"
+        )
+
+        print(f'Finalizing with {index} iterations')
+    
+    
+    pass
+
+# ============ full backtest =============
+def run_full_backtest():
+    
+    # ============ first stage test =============
+    
+    run_first_stage_test(sample_type="in_sample", strategy_fn=backside_short_tp_dchain_stop)
+    run_first_stage_test(sample_type="out_of_sample", strategy_fn=backside_short_tp_dchain_stop)
+
+    run_first_stage_test(sample_type="in_sample", strategy_fn=gap_crap_strategy)
+    run_first_stage_test(sample_type="out_of_sample", strategy_fn=gap_crap_strategy)
+
+    run_first_stage_test(sample_type="in_sample", strategy_fn=backside_short)
+    run_first_stage_test(sample_type="out_of_sample", strategy_fn=backside_short)
+
+    run_first_stage_test(sample_type="in_sample", strategy_fn=short_vwap_pop_strategy)
+    run_first_stage_test(sample_type="out_of_sample", strategy_fn=short_vwap_pop_strategy)
+
+    run_first_stage_test(sample_type="in_sample", strategy_fn=short_explosives_pops)
+    run_first_stage_test(sample_type="out_of_sample", strategy_fn=short_explosives_pops)
+    
+    # ====== longs =====
+    run_first_stage_test(sample_type="in_sample", strategy_fn=small_range_breakout_long_strategy)
+    run_first_stage_test(sample_type="out_of_sample", strategy_fn=small_range_breakout_long_strategy)
+    
+    run_first_stage_test(sample_type="in_sample", strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
+    run_first_stage_test(sample_type="out_of_sample", strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
+    
+    # ============ walk fordward test =============
+
+    run_walk_forward_test(sample_type="in_sample", strategy_fn=backside_short_tp_dchain_stop)
+    run_walk_forward_test(sample_type="out_sample", strategy_fn=backside_short_tp_dchain_stop)
+
+    run_walk_forward_test(sample_type="in_sample", strategy_fn=gap_crap_strategy)
+    run_walk_forward_test(sample_type="out_sample", strategy_fn=gap_crap_strategy)
+
+    run_walk_forward_test(sample_type="in_sample", strategy_fn=backside_short)
+    run_walk_forward_test(sample_type="out_sample", strategy_fn=backside_short)
+
+    run_walk_forward_test(sample_type="in_sample", strategy_fn=short_vwap_pop_strategy)
+    run_walk_forward_test(sample_type="out_sample", strategy_fn=short_vwap_pop_strategy)
+
+    run_walk_forward_test(sample_type="in_sample", strategy_fn=short_explosives_pops)
+    run_walk_forward_test(sample_type="out_sample", strategy_fn=short_explosives_pops)
+    
+    # ====== longs =====
+    run_walk_forward_test(sample_type="in_sample", strategy_fn=small_range_breakout_long_strategy)
+    run_walk_forward_test(sample_type="out_sample", strategy_fn=small_range_breakout_long_strategy)
+    
+    run_walk_forward_test(sample_type="in_sample", strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
+    run_walk_forward_test(sample_type="out_sample", strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
+    
+    
 #check_db()
 #exemple_with_api_data()
 #exemple_with_local_data()
 #running_examples()
 #run_backest()
-run_stats_on_trades()
-run_stats_on_trades(sub_path='out_of_sample')
+#run_stats_on_trades()
+#run_stats_on_trades(sub_path='out_of_sample')
+
+run_full_backtest()
+
+#run_walk_forward_test(strategy_fn=small_range_breakout_long_strategy)
+#run_walk_forward_test(strategy_fn=small_range_breakout_long_strategy, sample_type='out_of_sample')
+
+
+#run_stats_on_walk_fordward_trades(strategy_fn=backside_short)
+
+
    
 
 

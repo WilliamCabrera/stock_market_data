@@ -56,3 +56,18 @@ trigger long: rompe (close) upper band + volumen > avg vol (lookback=5)
 Nota: probar varias opciones avg volumen , 3xVolume etc.
 
 exit: rompe(close) la parte baja de la banda.
+
+
+Breakouts:
+Conviction of a breakout = ATR multiple.
+is breakout: si el precio pasa cierto nivel con una vela > a la vela average. y tiene que mantenerse sobre ese nivel durante un numero determinado de velas.
+Usar volume profile.: Utilisar los picos para determinar niveles importantes
+
+
+Swing Long:
+- Custom indicador: dividir tamanho de la vela por el ATR,  f(x)= (high - low)/atr
+                   * esto permite normalizar el precio y poder compararlo con el SPY o QQQ , example: f(TSLA) - f(QQQ).
+                   * la curva resultante de la diferencia permite encontrar stocks que tiene fuerza con respecto al mercado
+                   youtube: https://www.youtube.com/watch?v=Eh6DUSgApIc (minuto 11)
+
+

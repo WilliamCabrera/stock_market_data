@@ -832,8 +832,6 @@ def gap_crap_strategy(f_dict):
    
     return reduce_trades_columns(trades)   
 
-
-
 def short_exhaustion_strategy(f_dict):
     
     """
@@ -1916,6 +1914,8 @@ def backside_short_tp_dchain_stop(f_dict):
         trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
         trades['volume'] = volume_arr[entry_idx, col_idx]
         
+        return reduce_trades_columns(trades)   
+        
     except Exception as e:
         print(" error found in   --- backside_short --- ")
         print(e)
@@ -2177,8 +2177,8 @@ def small_range_breakout_long_strategy_with_tp_factor(f_dict):
         # ==================================================
         # PARAMETROS
         # ==================================================
-        tp_list  = [1]        # R-multiple
-        gap_list = [0.1]      # Gap mínimo
+        tp_list  = [1, 2, 3, 4, 5, 6, 8, 10]        # R-multiple
+        gap_list = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]      # Gap mínimo
 
         # ==================================================
         # PREPARAR VECTORES
@@ -2366,8 +2366,6 @@ def small_range_breakout_long_strategy_with_tp_factor(f_dict):
         trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
         trades['volume'] = volume_arr[entry_idx, col_idx]
         
-        
-
         return  reduce_trades_columns(trades)    
         
     except Exception as e:
@@ -2375,7 +2373,6 @@ def small_range_breakout_long_strategy_with_tp_factor(f_dict):
         print(e)
         return pd.DataFrame([])
     
-
 # ========  examples with data =========   
 
 def running_examples():
@@ -2749,12 +2746,8 @@ def  run_stats_on_walk_fordward_trades(path_to_trades="backtest_dataset/walk_for
         table = pd.DataFrame(trade_stats_list)
         table.to_parquet(f'{folder_path}/walk_fordward_{strategy_fn.__name__}_{sample_type}_{i}_trade_stats.parquet', index=False)   
             
-        
-    
-   
-   
-   
     #print(trades)
+    
 # ============ first stage test =============
   
 def run_first_stage_test(path="backtest_dataset",sample_type="in_sample", strategy_fn=backside_short_tp_dchain_stop, append_trades=True):
@@ -2766,98 +2759,12 @@ def run_first_stage_test(path="backtest_dataset",sample_type="in_sample", strate
         df = pd.read_parquet(file_path)
     else:
         print(f"File {file_path} does not exist.")
+        return
         
-        
-    folder_path = Path(f'{path}/{sample_type}/trades/{strategy_fn.__name__}')
-    folder_path.mkdir(parents=True, exist_ok=True)
-
-    df['date'] = pd.to_datetime(df['date'])
-    groups = df.groupby(['ticker','date_str'])
-
-    print(f'Total of groups: {len(groups)}')
-
-    counter = 0
-    df_dict = {}
-    index = 0
-    total_trades = 0
-
-    start_time = tm.perf_counter()
-
-    # -----------------------------
-    # MAIN LOOP
-    # -----------------------------
-    for (ticker,date_str), group in groups:
-        
-        group = group.set_index('date')
-        len_group = len(group)
-        
-
-        if counter >= 100_000:
-            index += 1
-            print(
-                f'Processing backtest for {len(df_dict)} tickers '
-                f'at iteration {index}...'
-            )
-            
-            print(counter, index, len(groups))
-            
-            trades = strategy_fn(df_dict)
-            print(trades)
-            save_trades_to_file(trades,file_path=f'{folder_path}/{strategy_fn.__name__}_{sample_type}_trades.parquet', append=append_trades) 
-            total_trades += len(trades)
-            print(f'Trades generated in iteration {index}: {len(trades)}')
-
-            counter = 0
-            df_dict = {}
-
-        if len_group > 50:
-            counter += len_group
-            if ticker in df_dict:
-                gp = df_dict[ticker]
-                new_group = pd.concat([gp, group], ignore_index=False)
-                new_group.sort_index()
-                df_dict[ticker] = new_group
-                
-            else:
-                df_dict[ticker] = group
-                
-                
-
-    # -----------------------------
-    # FINAL FLUSH
-    # -----------------------------
-    if index == 0 and counter > 0 and counter <= 100_000:
-        trades = strategy_fn(df_dict)
-        print(trades)
-        save_trades_to_file(trades,file_path=f'{folder_path}/{strategy_fn.__name__}_{sample_type}_trades.parquet', append=append_trades)
-        total_trades += len(trades)
-        print(f'Trades generated in iteration {index}: {len(trades)}')
-
-    end_time = tm.perf_counter()
-
-    print(
-        f"⏰ Tiempo total {sample_type} ({strategy_fn.__name__}): "
-        f"{end_time - start_time:.2f}s | "
-        f"Total trades: {total_trades}"
-    )
-
-    print(f'Finalizing with {index} iterations')
     
-# ============ walk fordward test =============
-
-def run_walk_forward_test(path="backtest_dataset/walk_fordward", sample_type="in_sample",strategy_fn=backside_short_tp_dchain_stop, append_trades=True):
-    
-    folder_path = Path(f'{path}/trades/{strategy_fn.__name__}')
-    folder_path.mkdir(parents=True, exist_ok=True)
-   
-    for i in range(1,4):
-        
-        file_path = Path(f'{path}/walk_fordward_{sample_type}_{i}.parquet')
-                
-        if file_path.exists():
-            df = pd.read_parquet(file_path)
-        else:
-            print(f"File {file_path} does not exist.")
+    if len(df) >0:
+        folder_path = Path(f'{path}/{sample_type}/trades/{strategy_fn.__name__}')
+        folder_path.mkdir(parents=True, exist_ok=True)
 
         df['date'] = pd.to_datetime(df['date'])
         groups = df.groupby(['ticker','date_str'])
@@ -2886,11 +2793,9 @@ def run_walk_forward_test(path="backtest_dataset/walk_fordward", sample_type="in
                     f'Processing backtest for {len(df_dict)} tickers '
                     f'at iteration {index}...'
                 )
-                
-                print(counter, index, len(groups))
-                
+
                 trades = strategy_fn(df_dict)
-                save_trades_to_file(trades,file_path=f'{folder_path}/walk_fordward_{sample_type}_{i}_trades.parquet', append=append_trades)
+                save_trades_to_file(trades,file_path=f'{folder_path}/{strategy_fn.__name__}_{sample_type}_trades.parquet', append=append_trades) 
                 total_trades += len(trades)
                 print(f'Trades generated in iteration {index}: {len(trades)}')
 
@@ -2908,15 +2813,16 @@ def run_walk_forward_test(path="backtest_dataset/walk_fordward", sample_type="in
                 else:
                     df_dict[ticker] = group
                     
-                
+                    
+
         # -----------------------------
         # FINAL FLUSH
         # -----------------------------
         if index == 0 and counter > 0 and counter <= 100_000:
             trades = strategy_fn(df_dict)
-            save_trades_to_file(trades, file_path=f'{folder_path}/walk_fordward_{sample_type}_{i}_trades.parquet', append=append_trades)
+            #print(trades)
+            save_trades_to_file(trades,file_path=f'{folder_path}/{strategy_fn.__name__}_{sample_type}_trades.parquet', append=append_trades)
             total_trades += len(trades)
-            print(trades)
             print(f'Trades generated in iteration {index}: {len(trades)}')
 
         end_time = tm.perf_counter()
@@ -2928,6 +2834,92 @@ def run_walk_forward_test(path="backtest_dataset/walk_fordward", sample_type="in
         )
 
         print(f'Finalizing with {index} iterations')
+    
+# ============ walk fordward test =============
+
+def run_walk_forward_test(path="backtest_dataset/walk_fordward", sample_type="in_sample",strategy_fn=backside_short_tp_dchain_stop, append_trades=True):
+    
+    folder_path = Path(f'{path}/trades/{strategy_fn.__name__}')
+    folder_path.mkdir(parents=True, exist_ok=True)
+   
+    for i in range(1,4):
+        
+        file_path = Path(f'{path}/walk_fordward_{sample_type}_{i}.parquet')
+                
+        if file_path.exists():
+            df = pd.read_parquet(file_path)
+            if len(df) > 0:
+                df['date'] = pd.to_datetime(df['date'])
+                groups = df.groupby(['ticker','date_str'])
+
+                print(f'Total of groups: {len(groups)}')
+
+                counter = 0
+                df_dict = {}
+                index = 0
+                total_trades = 0
+
+                start_time = tm.perf_counter()
+
+                # -----------------------------
+                # MAIN LOOP
+                # -----------------------------
+                for (ticker,date_str), group in groups:
+                    
+                    group = group.set_index('date')
+                    len_group = len(group)
+                    
+
+                    if counter >= 100_000:
+                        index += 1
+                        print(
+                            f'Processing backtest for {len(df_dict)} tickers '
+                            f'at iteration {index}...'
+                        )
+                        
+                        
+                        trades = strategy_fn(df_dict)
+                        save_trades_to_file(trades,file_path=f'{folder_path}/walk_fordward_{sample_type}_{i}_trades.parquet', append=append_trades)
+                        total_trades += len(trades)
+                        print(f'Trades generated in iteration {index}: {len(trades)}')
+
+                        counter = 0
+                        df_dict = {}
+
+                    if len_group > 50:
+                        counter += len_group
+                        if ticker in df_dict:
+                            gp = df_dict[ticker]
+                            new_group = pd.concat([gp, group], ignore_index=False)
+                            new_group.sort_index()
+                            df_dict[ticker] = new_group
+                            
+                        else:
+                            df_dict[ticker] = group
+                            
+                        
+                # -----------------------------
+                # FINAL FLUSH
+                # -----------------------------
+                if index == 0 and counter > 0 and counter <= 100_000:
+                    trades = strategy_fn(df_dict)
+                    save_trades_to_file(trades, file_path=f'{folder_path}/walk_fordward_{sample_type}_{i}_trades.parquet', append=append_trades)
+                    total_trades += len(trades)
+                    print(trades)
+                    print(f'Trades generated in iteration {index}: {len(trades)}')
+
+                end_time = tm.perf_counter()
+
+                print(
+                    f"⏰ Tiempo total {sample_type} ({strategy_fn.__name__}): "
+                    f"{end_time - start_time:.2f}s | "
+                    f"Total trades: {total_trades}"
+                )
+
+                print(f'Finalizing {strategy_fn.__name__} with  {index} iterations')
+        
+        else:
+            print(f"File {file_path} does not exist.")
     
     
     pass
@@ -2992,16 +2984,27 @@ def run_full_backtest():
 #run_stats_on_trades()
 #run_stats_on_trades(sub_path='out_of_sample')
 
-run_full_backtest()
+#run_full_backtest()
 
 #run_walk_forward_test(strategy_fn=small_range_breakout_long_strategy)
 #run_walk_forward_test(strategy_fn=small_range_breakout_long_strategy, sample_type='out_of_sample')
 
+#run_first_stage_test(sample_type="in_sample", strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
+#run_first_stage_test(sample_type="out_of_sample", strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
+#
+#run_walk_forward_test(sample_type="in_sample", strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
+#run_walk_forward_test(sample_type="out_sample", strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
 
-#run_stats_on_walk_fordward_trades(strategy_fn=backside_short)
+
+run_stats_on_first_stage_trades(strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
+run_stats_on_first_stage_trades(strategy_fn=small_range_breakout_long_strategy_with_tp_factor, sample_type='out_of_sample')
+
+run_stats_on_walk_fordward_trades(strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
+run_stats_on_walk_fordward_trades(strategy_fn=small_range_breakout_long_strategy_with_tp_factor, sample_type='out_sample')
 
 
    
+
 
 
 

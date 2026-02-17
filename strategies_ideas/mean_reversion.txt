@@ -1,0 +1,39 @@
+MEAN REVERSION LONG
+* RSI2 bellow 5
+* Sum of RSI readings for the past 2 days < 20
+* Lower low 3 days in a row
+* Lower close 3 days in a row
+* Close low than lowest low of 5 past days
+* Market close 1% bellow previous day close and ATR(5) > ATR(10) [increased volatility]
+* Market close 1% bellow previous day close and ATR(5) < ATR(10) [decreased volatility]
+* Close stretches bellow EMA(5) more than 50% ATR
+* Close stretches 1% bellow EMA(5)
+* EMA(5) decreased 0.5% compared to previous day 
+
+
+* Bollinger bads pass bellow lower band with the RSI bellow 30 (oversold) -> buy  and sell at middle band
+* Bollinger bads pass above upper band with the RSI bellow 70 (oversold) -> buy  and sell at middle band
+* stop loss 2 ATR
+
+TREND FOLLOWING:
+* Donchain chanel(bars = 5,offset = 1), parece ser buena. timeframe diario (mucho mejor en el long side) para assets con sesgo alcista.
+  close encinma de upper band -> comprar (como close de un short ya abierto o como inicio de una operacion)
+  close debajo lower band -> vender (como close de un long ya abierto o como inicio de una operacion)
+
+  * VERSION MEAN REVERSION:
+    Donchain chanel(bars = 5,offset = 1) Funcina bien en el long activos con Sesgo alcista claro.
+    - Comprar cuando Close < Lower Band
+    - Vender Cuando el Close es > Upper Band.
+   
+
+  - activos: time frames (30 min, 1h, 4h, 1D)
+    QQQ
+    TQQQ
+    TSLA 
+    NVDA
+    GLD
+    VXX (short side)
+    SQQQ (short side)
+
+  *
+  

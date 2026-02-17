@@ -33,7 +33,7 @@ def last_day_of_month(year: int, month: int) -> int:
     return calendar.monthrange(year, month)[1]
     
 # return tuple with 2 month intervals [('YYYY-MM-DD','YYYY-MM-DD'), .......]
-def month_ranges(start_date_str, end_date_str=None, monthdelta = 2):
+def month_ranges(start_date_str, end_date_str=None, monthdelta = 1):
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date() if end_date_str else date.today()
     
@@ -508,6 +508,194 @@ def process_data_30_minutes(data):
 
         return None
 
+def process_data_minutes(data):
+    
+    df = pd.DataFrame(data)
+
+    try:
+
+        df.rename(columns={'o': 'open', 'c': 'close', 'h': 'high', 'l': 'low', 'v': 'volume', 't': 'time'}, inplace=True)
+        # Convert timestamp to datetime
+      
+
+        if df.empty :
+            return df
+
+        df["date"] =  pd.to_datetime(df["time"], unit='ms', utc=True) # pd.to_datetime(df["time"], unit='ms') - pd.Timedelta(hours=5) # -5 means New York timezone 
+        df["date"] = df["date"].dt.tz_convert("America/New_York")
+        df["day"] =  df["date"].dt.date #pd.to_datetime(pd.to_datetime(df["time"], unit='ms').dt.date).dt.strftime('%Y-%m-%d') 
+        df["time"] = df["date"].dt.time
+        df["v"] = df["volume"]
+        
+        
+        # Identify pre-market (before 9:30 AM)
+        df["is_premarket"] = df["date"].dt.time < time(9, 30)
+        df["is_market_hours"] =( df["date"].dt.time >= time(9, 30)) & (df["date"].dt.time < time(16,0))
+        df["is_after_hours"] = df["date"].dt.time >= time(16,0)
+        
+        
+        
+        # getting high in Pre-Market
+        before_930 = df[df['time'] < time(9, 30)]
+        before_930 = before_930.sort_values(by="time").reset_index(drop=True)
+        highest_pre_market = before_930.groupby('day', as_index=False)['high'].max()
+        highest_pre_market.rename(columns={"high": "high_pm"}, inplace=True)
+        
+        lowest_pre_market = before_930.groupby('day', as_index=False)['low'].min()
+        lowest_pre_market.rename(columns={"low": "low_pm"}, inplace=True)
+        
+        first_pre_market_open = (
+            before_930
+            .sort_values(['day', 'time'])
+            .groupby('day', as_index=False)
+            .first()[['day', 'open']]
+            .rename(columns={'open': 'previous_close'})
+        )
+        
+        
+        
+        
+        # --------------------------------------------------
+        # Hora en que se alcanza el high del premarket
+        # --------------------------------------------------
+
+        # Unimos el máximo con el dataframe premarket
+        pm_high_with_time = before_930.merge(
+            highest_pre_market,
+            on="day",
+            how="left"
+        )
+
+        pm_high_with_time = pm_high_with_time[
+            pm_high_with_time["high"] == pm_high_with_time["high_pm"]
+        ]
+
+        pm_high_time = (
+            pm_high_with_time
+            .sort_values(["day", "date"])   # importante usar date, no time
+            .groupby("day", as_index=False)
+            .first()[["day", "date"]]
+        )
+
+        # Convertir datetime a epoch miliseconds
+        pm_high_time["high_pm_time"] = (
+            pm_high_time["date"].astype("int64") // 10**6
+        )
+
+        pm_high_time = pm_high_time[["day", "high_pm_time"]]
+                
+        # Filtrar las filas donde el año es 2026
+        #df_2026 = before_930[before_930['date'].dt.year == 2026]
+        #print(df_2026)
+        
+        # getting high in market hours
+        # Código corregido:
+        after_930 = df[(df['time'] >= time(9, 30)) & (df['time'] < time(16, 0))]
+        after_930 = after_930.sort_values(by="time").reset_index(drop=True)
+        highest_market_hours = after_930.groupby('day', as_index=False)['high'].max()
+        highest_market_hours.rename(columns={"high": "high_mh"}, inplace=True)
+        
+        lowest_market_hours = after_930.groupby('day', as_index=False)['low'].min()
+        lowest_market_hours.rename(columns={"low": "low_mh"}, inplace=True)
+        
+        after_hours = df[df['time'] >= time(16, 0)]
+        after_hours = after_hours.sort_values(by="time").reset_index(drop=True)
+        after_hour_daily_ohlc = after_hours.groupby('day', as_index=False).agg(  {
+                "open": "first",    # Apertura: Toma el precio de la primera entrada del día
+                "close": "last",     # Cierre: Toma el precio de la última entra
+                "high": "max",     # High is the highest high of the day
+                "low": "min",     # Low is the lowest low of the day
+                "volume": "sum"      # Volume is summed up for the day
+            }).reset_index()
+        after_hour_daily_ohlc['ah_range_perc'] =  100 *  ((after_hour_daily_ohlc['high'] -  after_hour_daily_ohlc['open'])/after_hour_daily_ohlc['open'])
+        after_hour_daily_ohlc['ah_range'] =  (after_hour_daily_ohlc['high'] -  after_hour_daily_ohlc['open'])
+        after_hour_daily_ohlc.rename(columns={'open': 'ah_open', 'close': 'ah_close', 'high': 'ah_high', 'low': 'ah_low', 'volume': 'ah_volume'}, inplace=True)
+        after_hour_daily_ohlc = after_hour_daily_ohlc[["ah_open","ah_close","ah_range_perc","ah_range", "day"]]
+        
+        
+        highest_after_hours = after_hours.groupby('day', as_index=False)['high'].max()
+        highest_after_hours.rename(columns={"high": "ah_high"}, inplace=True)
+        lowest_after_hours = after_hours.groupby('day', as_index=False)['low'].min()
+        lowest_after_hours.rename(columns={"low": "ah_low"}, inplace=True)
+
+        # Get the open at 9:30 AM and close at 4:00 PM
+        daily_open =  df[df["time"] == time(9, 30)].groupby("day")["open"].first().reset_index()
+        #daily_open ["open"] = open
+        daily_close = df[df["time"] == time(16, 0)].groupby("day")["open"].first().reset_index()
+        daily_close.rename(columns={"open": "close"}, inplace=True)
+     
+        # Aggregate to daily OHLC and sum volume
+        daily_ohlc = df.groupby("day").agg(
+            {
+                "high": "max",     # High is the highest high of the day
+                "low": "min",     # Low is the lowest low of the day
+                "volume": "sum"      # Volume is summed up for the day
+            }
+        ).reset_index()
+            
+        # Sum pre-market volume
+        daily_premarket_volume = df[df["is_premarket"]].groupby("day")["v"].sum().reset_index()
+        daily_premarket_volume.rename(columns={"v": "premarket_volume"}, inplace=True)
+        # Sum pre-market volume
+        market_hours_volume = df[df["is_market_hours"]].groupby("day")["v"].sum().reset_index()
+        market_hours_volume.rename(columns={"v": "market_hours_volume"}, inplace=True)
+        
+        after_hours_volume = df[df["is_after_hours"]].groupby("day")["v"].sum().reset_index()
+        after_hours_volume.rename(columns={"v": "ah_volume"}, inplace=True)
+        
+        
+        # Merge open, close, and premarket volume with daily OHLC
+        daily_ohlc = daily_ohlc.merge(daily_open, on="day", how="left")
+        daily_ohlc = daily_ohlc.merge(daily_close, on="day", how="left")
+        daily_ohlc = daily_ohlc.merge(daily_premarket_volume, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(market_hours_volume, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(highest_market_hours, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(highest_pre_market, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(first_pre_market_open, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(lowest_pre_market, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(after_hour_daily_ohlc, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(highest_after_hours, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(lowest_after_hours, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(lowest_market_hours, on="day", how="left").fillna(0)
+        daily_ohlc = daily_ohlc.merge(after_hours_volume, on="day", how="left").fillna(0)
+        daily_ohlc['highest_in_pm'] = daily_ohlc['high_pm'] >= daily_ohlc['high_mh']
+        daily_ohlc['time'] = pd.to_datetime(daily_ohlc['day']).astype('int64') // 10**6
+        daily_ohlc['date_str'] = pd.to_datetime(pd.to_datetime(daily_ohlc["day"])).dt.strftime('%Y-%m-%d') 
+        
+        daily_ohlc['high'] =  np.maximum(daily_ohlc['high_mh'], daily_ohlc['open'])
+        daily_ohlc['low'] =  np.minimum(daily_ohlc['low_mh'], daily_ohlc['low_pm'])
+        
+        daily_ohlc = daily_ohlc.merge(pm_high_time, on="day", how="left")
+         
+        daily_ohlc.fillna(
+                    {
+                        'gap': -1,              # Replace NaN in 'gap' column with -1
+                        'volume': -1,           # Replace NaN in 'volume' column with -1
+                        'gap_perc': -1,           # Replace NaN in 'volume' column with -1
+                        'premarket_volume': -1,           # Replace NaN in 'volume' column with -1
+                        'previous_close': -1,           # Replace NaN in 'volume' column with -1
+                        'ah_range': 0,           # Replace NaN in 'volume' column with -1
+                        'ah_range_perc': 0 ,        # Replace NaN in 'market_cap' column with 0 (just for example),
+                        "ah_open":-1,
+                        "ah_close":-1,
+                        "ah_high":-1,
+                        "ah_low":-1,
+                        "ah_volume":-1,
+                        "low_pm":-1,
+                        "high_pm":-1,
+                        "high_mh":-1,
+                        "market_hours_volume":-1
+                    },
+                    inplace=True
+                )
+        
+       
+        return  daily_ohlc
+    except  Exception as e:
+        print(f' error: {e}')
+
+        return None
+
 def raw_data_to_dataframe(data):
 
    
@@ -642,7 +830,8 @@ def process_pipeline(ticker_array, dates, apiConnectionParams):
 
             data30 = fetch_ticker_data_30(ticker, date1, date2)
             print(f'ticker: {ticker} - from: {date1} to {date2}')
-            processedData = process_data_30_minutes(data30)
+            #processedData = process_data_30_minutes(data30)
+            processedData = process_data_minutes(data30)
             dataDaily = raw_data_to_dataframe(fetch_ticker_data_daily(ticker, date1, date2))
             
             if processedData.empty == False and dataDaily.empty == False:
@@ -1680,7 +1869,9 @@ def  update_ticker(ticker, folder_path, start_date, end_date, apiConnectionParam
             data30 = fetch_ticker_data_30(ticker, date1, date2)
             
             print(f'ticker: {ticker} - from: {date1} to {date2}')
-            processedData = process_data_30_minutes(data30)
+            #processedData = process_data_30_minutes(data30)
+            processedData = process_data_minutes(data30)
+            
             dataDaily = raw_data_to_dataframe(fetch_ticker_data_daily(ticker, date1, date2))
             
             if processedData.empty == False and dataDaily.empty == False:

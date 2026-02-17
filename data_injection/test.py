@@ -18,8 +18,14 @@ from small_caps_strategies import runner
 from dotenv import load_dotenv
 from multiprocessing import current_process
 from pathlib import Path
+import yfinance as yf
 
 
+load_dotenv() 
+connectionParams ={}
+connectionParams['POSTGREST_H'] = 'localhost'  # os.getenv("POSTGREST_H", "none")
+connectionParams['POSTGREST_P'] = '3030' # os.getenv("POSTGREST_P", "none")
+connectionParams['POSTGREST_TOKEN'] =  os.getenv("POSTGREST_TOKEN", "none")
 
 def prepare_data_for_dataset_file_5min(ticker, date_str, previous_day_close = 10000000):
     
@@ -65,7 +71,9 @@ def prepare_data_for_dataset_file_5min(ticker, date_str, previous_day_close = 10
 def test_previous_close_sync(ticker, start_date, end_date):
     
     raw_data = utils.fetch_ticker_data_30(ticker, start_date, end_date)
-    processed_data = utils.process_data_30_minutes(raw_data)
+    #processed_data = utils.process_data_30_minutes(raw_data)
+    processed_data = utils.process_data_minutes(raw_data)
+    
             
     # Añadir información clave para la consolidación
     processed_data['ticker'] = ticker
@@ -339,7 +347,26 @@ def pipeline_backtest_dataset_walk_fordward(task, id):
     except Exception as e:
         print(f"❌ Worker {id} error:", e)
                    
-
+def test5():
+    
+    stock_list = utils.get_ticker_list_from_db(connectionParams)
+    print(stock_list)
+    
+    for index, row in stock_list.iterrows():
+        ticker = row['ticker']
+        present = datetime.today().strftime('%Y-%m-%d')
+        ticker_data = yf.download(ticker, start="2000-01-01", end=present)
+        ticker_data.columns = [col[0] for col in ticker_data.columns]
+        ticker_data['previous_day_close'] =  ticker_data['Close'].shift(1)
+        ticker_data['gap'] =  100 * (ticker_data['Open']  - ticker_data['previous_day_close']) /ticker_data['previous_day_close'] 
+        ticker_data['ticker'] =  ticker
+        ticker_data = ticker_data.reset_index()
+        ticker_data = ticker_data.dropna()
+        #print(ticker_data)
+        utils_helpers.append_single_parquet(df=ticker_data, path=f'yf_gappers.parquet')
+        print(f'{ticker}-{index}')
+        
+    return
 #runner.walk_fordward_runner(init_worker= runner.init_worker, strategy_func=pipeline_backtest_dataset_walk_fordward, n_cpus= 8, chunk_size= 1000, sample_type='in_sample', walk_fordward_step = 1) 
 #runner.walk_fordward_runner(init_worker= runner.init_worker, strategy_func= pipeline_backtest_dataset_walk_fordward, n_cpus= 8, chunk_size= 1000, sample_type='in_sample', walk_fordward_step = 2) 
 #runner.walk_fordward_runner(init_worker= runner.init_worker, strategy_func= pipeline_backtest_dataset_walk_fordward, n_cpus= 8, chunk_size= 1000, sample_type='in_sample', walk_fordward_step = 3) 
@@ -360,3 +387,10 @@ def pipeline_backtest_dataset_walk_fordward(task, id):
 #test_3()
 
 #test_4()
+
+# data = utils.fetch_ticker_data_1min('PHIO', '2026-02-10',  '2026-02-10', adjusted=False)
+# data = utils.process_data_minutes(data)
+# print(data)
+
+test5()
+

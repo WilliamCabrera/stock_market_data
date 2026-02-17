@@ -133,12 +133,12 @@ def prepare_params_for_fetch(connectionParams):
         return []
     
     
-    # the DB base has already data so need to check if new ticker has been listed
-    if len(params) > 0:
-        new_stock_params = prepare_to_inject_new_listed_tickers(connectionParams)
-        new_list = params + new_stock_params
+    # # the DB base has already data so need to check if new ticker has been listed
+    # if len(params) > 0:
+    #     new_stock_params = prepare_to_inject_new_listed_tickers(connectionParams)
+    #     new_list = params + new_stock_params
               
-        return new_list
+    #     return new_list
         
     
     

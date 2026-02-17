@@ -383,7 +383,6 @@ def alpha_beta(strategy_returns: pd.Series, benchmark_returns: pd.Series, freq: 
     alpha = (df.iloc[:, 0].mean() - beta * df.iloc[:, 1].mean()) * freq
     return alpha, beta
 
-
 # ============================================================
 # SUMMARY REPORT (R + EQUITY REALISTA)
 # ============================================================
@@ -425,6 +424,8 @@ def summary_report(trades: pd.DataFrame, initial_capital: float, risk_pct: float
         report["Beta"] = beta
 
     return pd.Series(report)
+
+
 
 
 # ============================================================
@@ -637,4 +638,108 @@ def analysis_and_plot_with_benchmark(
     axes[3,1].grid(True)
 
     plt.tight_layout()
+    plt.show()
+    
+def get_mae_mfe(trades, data):
+    trades = trades[:5]
+    trades_data = trades.copy()
+    # Asegurar datetime
+    trades_data['entry_time'] = pd.to_datetime(trades_data['entry_time'])
+    trades_data['exit_time'] = pd.to_datetime(trades_data['exit_time'])
+    data['date'] = pd.to_datetime(data['date'])
+
+    mae_list = []
+    mfe_list = []
+
+    for row in trades_data.itertuples():
+
+        ticker = row.ticker
+        entry_time = row.entry_time
+        exit_time = row.exit_time
+        entry_price = row.entry_price
+        side = row.type
+
+        # Filtrar datos del trade
+        trade_data = data[
+            (data['ticker'] == ticker) &
+            (data['date'] >= entry_time) &
+            (data['date'] <= exit_time)
+        ]
+
+        if trade_data.empty:
+            mae_list.append(None)
+            mfe_list.append(None)
+            continue
+
+        highest_high = trade_data['high'].max()
+        lowest_low = trade_data['low'].min()
+
+        if side.lower() == "long":
+            mae = lowest_low - entry_price
+            mfe = highest_high - entry_price
+        else:  # short
+            mae = entry_price - highest_high
+            mfe = entry_price - lowest_low
+
+        mae_list.append(mae)
+        mfe_list.append(mfe)
+
+    trades_data['MAE'] = mae_list
+    trades_data['MFE'] = mfe_list
+        
+
+    return trades_data
+
+
+# ===========================
+# MONTECARLO SIMALATION
+#============================
+
+def montecarlo():
+    
+    import matplotlib.pyplot as plt
+
+    # Parámetros de la Estrategia 5
+    winrate = 0.63
+    avg_win = 0.60
+    avg_loss = 0.85
+
+    n_trades = 1000       # Número de trades por simulación
+    n_simulations = 1000  # Número de caminos Monte Carlo
+
+    # Guardar todas las curvas de equity
+    all_equities = []
+
+    for _ in range(n_simulations):
+        wins = np.random.rand(n_trades) < winrate
+        returns = np.where(wins, avg_win, -avg_loss)
+        equity = np.cumsum(returns)
+        all_equities.append(equity)
+
+    all_equities = np.array(all_equities)
+
+    # Calcular percentiles
+    percentile_10 = np.percentile(all_equities, 10, axis=0)
+    percentile_50 = np.percentile(all_equities, 50, axis=0)
+    percentile_90 = np.percentile(all_equities, 90, axis=0)
+
+    # Gráfico de banda de Monte Carlo
+    plt.figure(figsize=(12,6))
+    plt.fill_between(range(n_trades), percentile_10, percentile_90, color='lightblue', alpha=0.5, label='10%-90% band')
+    plt.plot(percentile_50, color='blue', label='Mediana (50%)')
+    plt.title('Monte Carlo Equity Curve - Estrategia 5')
+    plt.xlabel('Número de Trades')
+    plt.ylabel('Equity acumulada')
+    plt.legend()
+    plt.show()
+
+    # Calcular drawdowns máximos por camino
+    drawdowns = np.max(np.maximum.accumulate(all_equities, axis=1) - all_equities, axis=1)
+
+    # Histograma de drawdowns
+    plt.figure(figsize=(8,5))
+    plt.hist(drawdowns, bins=50, color='salmon', edgecolor='black')
+    plt.title('Distribución de Drawdowns - Estrategia 5')
+    plt.xlabel('Drawdown máximo por camino')
+    plt.ylabel('Frecuencia')
     plt.show()

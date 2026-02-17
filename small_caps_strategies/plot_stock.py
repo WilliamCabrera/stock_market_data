@@ -163,7 +163,6 @@ def prepare_data_for_dataset_file_5min(ticker, date_str, previous_day_close = 10
  
     return df_5min
 
-
 @runner.pipeline
 def pipeline_backtest_dataset(df = pd.DataFrame([]), id=0):
     
@@ -209,7 +208,6 @@ def pipeline_backtest_dataset(df = pd.DataFrame([]), id=0):
                 print(f"⏰ Tiempo total de ejecución: {total_duration:.2f} segundos.")
                 print("=================error=============================")
                 
-
 @runner.pipeline
 def pipeline_backtest_dataset_long(df = pd.DataFrame([]), id=0):
     
@@ -299,8 +297,6 @@ def pipeline_backtest_dataset_out_of_sample(df = pd.DataFrame([]), id=0):
 
                 print(f"⏰ Tiempo total de ejecución: {total_duration:.2f} segundos.")
                 print("=================error=============================")
-
-
 
 @runner.pipeline
 def pipeline_backtest_dataset_long_out_of_sample(df = pd.DataFrame([]), id=0):
@@ -395,7 +391,15 @@ def update_dataset_csv():
     
     x =  backtest_data[backtest_data['gap_perc'] > 50]
     
+    xx = all_data.iloc[10000:20000]
+    xx = xx[xx['gap_perc'] > 50]
+    
+    xxx =  all_data.iloc[20001:]
+    #xxx = xxx[xxx['gap_perc'] > 50]
+    
     print(x)
+    print(xx)
+    print(xxx)
     # out_of_sample_data = all_data.iloc[10000:20000]
     # #print(backtest_data)
 
@@ -406,10 +410,10 @@ def update_dataset_csv():
     #print(gappers_backtest_dataset)
     #print(f"Total gappers fetched: {len(all_data)}")
 
-    #df =  all_data[(all_data['gap_perc'] > 500) & (all_data['gap_perc'] < 600)]
+    #df = all_data[(all_data['gap_perc'] > 500) & (all_data['gap_perc'] < 600)]
 
     #print(all_data.columns)
-    # print(df[['ticker', 'date_str', 'gap', 'gap_perc', 'daily_range',
+    #print(df[['ticker', 'date_str', 'gap', 'gap_perc', 'daily_range',
     #        'previous_close',  'open', 'high', 'low', 'volume','close',
     #       'high_mh', 'high_pm',
     #       'day_range_perc',]])
@@ -505,12 +509,12 @@ previous_day_close_0 = 1.19
 ticker='ADXN'
 # ticker = 'AAOI'
 # date_str = '2022-09-16'
-(df_5min, _) = prepare_data_parabolic_short_5min(ticker, date_str, date_str)
-plot_trades(df_5min, markers=[])
+#(df_5min, _) = prepare_data_parabolic_short_5min(ticker, date_str, date_str)
+#plot_trades(df_5min, markers=[])
 
 
 
-# update_dataset_csv()
+update_dataset_csv()
 #sync_prev_close()
 #sync_v1()
 

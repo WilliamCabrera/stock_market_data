@@ -1,7 +1,7 @@
 import vectorbt as vbt
 import pandas as pd
 import numpy as np
-from utils import helpers as utils_helpers, trade_metrics as tm
+from utils import helpers as utils_helpers, trade_metrics as tme
 import itertools
 import time as tm
 from functools import wraps
@@ -1432,9 +1432,9 @@ def backside_short(f_dict):
         # ==================================================
         # PARAMETROS
         # ==================================================
-        tp_list  = [0.15, 0.20, 1, 0.2, 1]        # TP relativos (short)
-        sl_list  = [3.5, 3.5, 3.5, 3.5, 3.5]          # SL en múltiplos de ATR
-        gap_list = [0.5, 0.5, 0.5, 0.8, 0.8]          # Gap mínimo vs prev day close
+        tp_list  = [0.10, 0.10, 0.15, 0.15, 0.20, 0.20, 1.00, 1.00]        # TP relativos (short)
+        sl_list  = [2.00, 3.50, 2.00, 3.50, 2.00, 3.50, 2.00, 3.50]          # SL en múltiplos de ATR
+        gap_list = [0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50]          # Gap mínimo vs prev day close
 
         # ==================================================
         # PREPARAR VECTORES
@@ -2506,6 +2506,10 @@ def exemple_with_api_data():
     date_str0 =  "2022-07-01"
     previous_day_close_0 = 1.19
     ticker='ADXN'
+    
+    date_str0 =  "2021-12-22"
+    previous_day_close_0 = 1.27
+    ticker='ALJJ'
 
     (df0,_) = commons.prepare_data_parabolic_short_5min_v1(ticker, date_str0)
     df0['ticker'] = ticker
@@ -2745,7 +2749,7 @@ def  run_stats_on_walk_fordward_trades(path_to_trades="backtest_dataset/walk_for
         
         table = pd.DataFrame(trade_stats_list)
         table.to_parquet(f'{folder_path}/walk_fordward_{strategy_fn.__name__}_{sample_type}_{i}_trade_stats.parquet', index=False)   
-            
+        print(table)
     #print(trades)
     
 # ============ first stage test =============
@@ -2996,12 +3000,77 @@ def run_full_backtest():
 #run_walk_forward_test(sample_type="out_sample", strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
 
 
-run_stats_on_first_stage_trades(strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
-run_stats_on_first_stage_trades(strategy_fn=small_range_breakout_long_strategy_with_tp_factor, sample_type='out_of_sample')
+# run_first_stage_test(strategy_fn=backside_short)
+# run_first_stage_test(strategy_fn=backside_short, sample_type='out_of_sample')
 
-run_stats_on_walk_fordward_trades(strategy_fn=small_range_breakout_long_strategy_with_tp_factor)
-run_stats_on_walk_fordward_trades(strategy_fn=small_range_breakout_long_strategy_with_tp_factor, sample_type='out_sample')
+# run_walk_forward_test(strategy_fn=backside_short)
+# run_walk_forward_test(strategy_fn=backside_short, sample_type='out_sample')
 
+# run_stats_on_first_stage_trades(strategy_fn=backside_short)
+# run_stats_on_first_stage_trades(strategy_fn=backside_short, sample_type='out_of_sample')
+
+# run_stats_on_walk_fordward_trades(strategy_fn=backside_short)
+# run_stats_on_walk_fordward_trades(strategy_fn=backside_short, sample_type='out_sample')
+
+# in_sample = pd.read_parquet("backtest_dataset/walk_fordward/trades/small_range_breakout_long_strategy_with_tp_factor/walk_fordward_in_sample_1_trades.parquet")
+# in_sample['is_profit'] = in_sample['pnl'] >0
+# trades1=  in_sample[(in_sample['strategy'] == 'small_range_breakout_long_strategy_with_tp_factor_1_0.1') & (in_sample['rvol_daily'] > 20)]
+# trades2=  in_sample[(in_sample['strategy'] == 'small_range_breakout_long_strategy_with_tp_factor_2_0.1') & (in_sample['rvol_daily'] > 20)]
+# trades3=  in_sample[(in_sample['strategy'] == 'small_range_breakout_long_strategy_with_tp_factor_3_0.1') & (in_sample['rvol_daily'] > 20)]
+# trades4=  in_sample[(in_sample['strategy'] == 'small_range_breakout_long_strategy_with_tp_factor_4_0.1') & (in_sample['rvol_daily'] > 20)]
+# trades5=  in_sample[(in_sample['strategy'] == 'small_range_breakout_long_strategy_with_tp_factor_5_0.1') & (in_sample['rvol_daily'] > 20)]
+# trades6=  in_sample[(in_sample['strategy'] == 'small_range_breakout_long_strategy_with_tp_factor_6_0.1') & (in_sample['rvol_daily'] > 20)]
+# trades7=  in_sample[(in_sample['strategy'] == 'small_range_breakout_long_strategy_with_tp_factor_7_0.1') & (in_sample['rvol_daily'] > 20)]
+# trades8=  in_sample[(in_sample['strategy'] == 'small_range_breakout_long_strategy_with_tp_factor_8_0.1') & (in_sample['rvol_daily'] > 20)]
+
+
+# groups = in_sample.groupby('strategy')
+# for strategy, group in groups:
+#     print(strategy)
+   
+   
+
+# filter = ['ticker', 'type', 'stop_loss_price', 'pnl','is_profit', 'rvol_daily', 'previous_day_close', 'entry_time', 'volume', 'strategy']
+# print("========= trades1 =======") 
+# print(trades1[filter])
+
+# (_stats, df )= utils_helpers.stats(trades_df=trades1)
+# print("===================================")
+# pprint(_stats)
+
+# print("========= trades1 =======") 
+# print(trades8[filter])
+
+# (_stats, df )= utils_helpers.stats(trades_df=trades8)
+# print("===================================")
+# pprint(_stats)
+
+# print(len(trades1))
+# print(len(trades2))
+# print(len(trades3))
+# print(len(trades4))
+
+# exemple_with_api_data()
+# print("======== trades2 ========")
+# print(trades2[filter])
+# print("======== trades3 ========")
+# print(trades3[filter])
+# print("======== trades4 ========")
+# print(trades4[filter])
+# print("======== trades5 ========")
+# print(trades5[filter])
+
+trades_path = 'backtest_dataset/in_sample/trades/backside_short/backside_short_in_sample_trades.parquet'
+data_path = 'backtest_dataset/in_sample/gappers_backtest_dataset_5min_in_sample.parquet'
+
+trades=  pd.read_parquet(trades_path)
+data =  pd.read_parquet(data_path)
+res = tme.get_mae_mfe(trades, data)
+
+print(res)
+
+
+ 
 
    
 

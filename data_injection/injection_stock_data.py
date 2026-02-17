@@ -75,6 +75,55 @@ async def fetch_data_30_min(session: aiohttp.ClientSession, params) :
         print(f"Error inesperado durante la ingesta: {e}")
         return False
 
+
+# Función A: Fetch a una API (Asíncrona)
+async def fetch_data_1_min(session: aiohttp.ClientSession, params) :
+    # URL de ejemplo
+    
+    (ticker, start_date, end_date) = params
+
+    # Polygon.io API details
+    API_KEY = os.getenv("API_KEY", "none")  # Replace with your Polygon.io API key
+    
+    BASE_URL_30_MINUTES = "https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/minute/{start_date}/{end_date}?adjusted=false&sort=asc&apiKey={apiKey}&limit=50000"
+    url_30_min = BASE_URL_30_MINUTES.format(ticker=ticker, start_date=start_date, end_date=end_date,apiKey=API_KEY)
+    
+    print(url_30_min)
+    try:
+        async with session.get(url_30_min) as response:
+            # Lanza una excepción para códigos de estado 4xx/5xx
+            response.raise_for_status() 
+            # Devuelve el JSON de la respuesta
+            res = await response.json()
+            data = res.get("results", [])
+            return data
+    except KeyError as e:
+        # Maneja la falta de un parámetro en connectionParams
+        print(f"Error: Falta un parámetro de conexión clave: {e}")
+        return False
+
+    except aiohttp.ClientResponseError as e:
+        # Manejo específico para errores de respuesta HTTP (4xx/5xx)
+        # Puedes intentar leer el cuerpo de la respuesta para obtener más detalles
+        try:
+            error_details = await response.text()
+        except:
+            error_details = "No se pudo leer el cuerpo de la respuesta."
+            
+        print(f"Error HTTP {e.status} al hacer POST a {url}. Detalles: {error_details}")
+        return False 
+        
+    except aiohttp.ClientError as e:
+        # Captura otros errores de aiohttp (ej. errores de conexión o timeout)
+        print(f"Error de aiohttp (Conexión/Timeout) al hacer POST a {url}: {e}")
+        return False 
+        
+    except Exception as e:
+        # Captura cualquier otro error (ej. error al hacer dumps de json)
+        print(f"Error inesperado durante la ingesta: {e}")
+        return False
+
+
 async def ingest_data(session: aiohttp.ClientSession, data, connectionParams = None):
     data_len = len(data)
     if connectionParams is None:
@@ -180,12 +229,13 @@ async def fetch_and_process(session: aiohttp.ClientSession, params, api_semaphor
     async with api_semaphore:
         try:
             # Función A
-            raw_data = await fetch_data_30_min(session, params)
+            raw_data = await fetch_data_1_min(session, params)
             if not raw_data:
                 return None
 
             # Función B
-            processed_data = utils.process_data_30_minutes(raw_data)
+            #processed_data = utils.process_data_30_minutes(raw_data)
+            processed_data = utils.process_data_minutes(raw_data)
             
             # Añadir información clave para la consolidación
             processed_data['ticker'] = ticker
@@ -345,8 +395,11 @@ async def async_batch_runner(batch_id: int, ticker_batch: Dict, connectionParams
                         "stock_float",
                         "daily_200_sma",
                         "split_date_str", 
-                        'split_adjust_factor'
+                        'split_adjust_factor',
+                        'high_pm_time'
                         ]]
+            
+            print(_df[['ticker','date_str','high_pm_time']])
             
         
             _df = _df[~((_df['open'] == 0) & (_df['close'] == 0))]

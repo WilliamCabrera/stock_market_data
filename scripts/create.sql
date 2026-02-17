@@ -38,6 +38,7 @@ CREATE TABLE stock_data (
     low_pm DECIMAL(20, 2) DEFAULT -1,
     highest_in_PM BOOLEAN,
     time BIGINT NOT NULL,
+    high_pm_time BIGINT,
     market_cap DECIMAL(20, 2) DEFAULT -1,
     daily_200_sma DECIMAL(20, 2) DEFAULT -1,
     stock_float DECIMAL(20, 2) DEFAULT -1,
@@ -138,9 +139,10 @@ WHERE previous_close >= 0.2
   AND (
        ((open - previous_close) * 100.0 / previous_close) > 10
     OR ((high_pm - previous_close) * 100.0 / previous_close) > 10
+    OR ((high_mh - previous_close) * 100.0 / previous_close) > 10
     OR day_range_perc > 10
       )
-  AND market_cap < 1000000000
+--  AND market_cap < 1000000000
    AND previous_close < 10 and open >0 and close > 0
 ORDER BY time ASC
 WITH NO DATA;
@@ -243,7 +245,7 @@ BEGIN
         INSERT INTO stock_data (
             ticker, date_str, gap, gap_perc, daily_range, previous_close, high, low, 
             volume, open, close, premarket_volume, market_hours_volume, 
-            high_mh, high_pm, low_pm, highest_in_PM, time, market_cap, 
+            high_mh, high_pm, low_pm, highest_in_PM, time, high_pm_time, market_cap, 
             daily_200_sma, stock_float, day_range_perc, ah_open, ah_close, 
             ah_high, ah_low, ah_range, ah_range_perc, ah_volume, split_date_str , split_adjust_factor 
         )
@@ -272,6 +274,7 @@ BEGIN
             low_pm DECIMAL(20, 2),
             highest_in_PM BOOLEAN,
              time BIGINT,
+             high_pm_time BIGINT,
             market_cap DECIMAL(20, 2),
             daily_200_sma DECIMAL(20, 2),
             stock_float DECIMAL(20, 2),
@@ -316,14 +319,14 @@ BEGIN
         INSERT INTO stock_data (
             ticker, date_str, gap, gap_perc, daily_range, previous_close, high, low, 
             volume, open, close, premarket_volume, market_hours_volume, 
-            high_mh, high_pm, low_pm, highest_in_PM, time, market_cap, 
+            high_mh, high_pm, low_pm, highest_in_PM, time, high_pm_time, market_cap, 
             daily_200_sma, stock_float, day_range_perc, ah_open, ah_close, 
             ah_high, ah_low, ah_range, ah_range_perc, ah_volume, split_date_str, split_adjust_factor 
         )
         SELECT 
             ticker, date_str, gap, gap_perc, daily_range, previous_close, high, low, 
             volume, open, close, premarket_volume, market_hours_volume, 
-            high_mh, high_pm, low_pm, highest_in_PM, time, market_cap, 
+            high_mh, high_pm, low_pm, highest_in_PM, time, high_pm_time, market_cap, 
             daily_200_sma, stock_float, day_range_perc, ah_open, ah_close, 
             ah_high, ah_low, ah_range, ah_range_perc, ah_volume , split_date_str, split_adjust_factor 
         FROM jsonb_to_recordset(p_data) AS x(
@@ -332,7 +335,7 @@ BEGIN
             daily_range DECIMAL(10, 2), previous_close DECIMAL(10, 2), high DECIMAL(20, 2), low DECIMAL(20, 2), 
             volume DECIMAL(20, 2), open DECIMAL(20, 2), close DECIMAL(20, 2), premarket_volume DECIMAL(20, 2), 
             market_hours_volume DECIMAL(20, 2), high_mh DECIMAL(20, 2), high_pm DECIMAL(20, 2), low_pm DECIMAL(20, 2), 
-            highest_in_PM BOOLEAN,  time BIGINT, market_cap DECIMAL(20, 2), daily_200_sma DECIMAL(20, 2), 
+            highest_in_PM BOOLEAN,  time BIGINT,  high_pm_time BIGINT, market_cap DECIMAL(20, 2), daily_200_sma DECIMAL(20, 2), 
             stock_float DECIMAL(20, 2), day_range_perc DECIMAL(20, 2), ah_open DECIMAL(20, 2), ah_close DECIMAL(20, 2), 
             ah_high DECIMAL(20, 2), ah_low DECIMAL(20, 2), ah_range DECIMAL(20, 2), ah_range_perc DECIMAL(20, 2), 
             ah_volume DECIMAL(20, 2), split_date_str VARCHAR(20), split_adjust_factor DECIMAL(20, 2)
@@ -367,7 +370,8 @@ BEGIN
             ah_range_perc = EXCLUDED.ah_range_perc,
             ah_volume = EXCLUDED.ah_volume,
             split_date_str = EXCLUDED.split_date_str,
-            split_adjust_factor = EXCLUDED.split_adjust_factor
+            split_adjust_factor = EXCLUDED.split_adjust_factor,
+            high_pm_time = EXCLUDED.high_pm_time
         
         -- RETURNING devuelve 1 para filas insertadas Y actualizadas.
         RETURNING 1

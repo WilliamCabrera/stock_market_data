@@ -3,6 +3,8 @@ import sys
 sys.path.insert(0, os.path.abspath("."))
 import vectorbt as vbt
 import pandas as pd
+pd.options.display.float_format = '{:.3f}'.format
+
 import numpy as np
 from utils import helpers as utils_helpers, trade_metrics as tm
 from pprint import pprint
@@ -157,89 +159,40 @@ def prepare_n_dim_arrays(f_dict, gap_list =[], tp_list = [], sl_list= []):
     
     return all_params
 
+def walk_fordward_split(ticker="", df=pd.DataFrame(), train_days=252, test_days=160):
+    
+    n = len(df)
+    splits = []
+    df_diff = 150
+    total_intervals = 4
+    df_dict = {}
+    
+    if n > total_intervals * df_diff + train_days + test_days:
+        
+        for i in range(0, total_intervals):
+            train = df[i*df_diff:i*df_diff + train_days]
+            test = df[i*df_diff + train_days: i*df_diff + train_days + test_days]
+            
+            splits.append((train, test, f'{ticker}_{i}'))
+            df_dict[f'{ticker}_{i}_train'] = train
+            df_dict[f'{ticker}_{i}_test'] = test
+        
+             
+    return df_dict
 # ================ strategies ====================
 #
 # ================================================
-def breakout_donchain(df):
-    
-    don_channel_len = 5
-    offset = 1
-    
-    # =============================
-    # Donchian Channel
-    # =============================
-    high = df["high"]
-    low = df["low"]
-    close = df["close"]
 
-    upper = high.rolling(don_channel_len).max()
-    lower = low.rolling(don_channel_len).min()
-
-    # Apply offset (same logic as Pine: [1 + offset])
-    upper_shifted = upper.shift(offset)
-    lower_shifted = lower.shift(offset)
+def breakout_donchain(f_dict, initial_equity=10000):
+    """
+    Trend following strategy, good bullish assest like SPY, NASDAQ, GOLD, SLV. Timeframes >= 1h
+    BIAS: Long only
+    f_dict: dictionary with ticker name as key and data as value ex: {"TSLA": dataframe, "QQQ":dataframe2,....}
     
-    # =============================
-    # Entry Conditions
-    # =============================
-    long_entries = close > upper_shifted
-    short_entries = close < lower_shifted
-
-    # =============================
-    # Exit Conditions (reversal logic)
-    # =============================
-    long_exits = close < lower_shifted
-    short_exits = close > upper_shifted
-
-   
-    
-    # =============================
-    # Portfolio
-    # =============================
-    pf = vbt.Portfolio.from_signals(
-        close=close, 
-        entries=long_entries,
-        exits=long_exits,
-        price=close,
-        direction='longonly',
-        fees=0.001,
-        size=0.2,
-        size_type="percent",  # % del equity
-        init_cash=10_000,
-        freq="1D"  # cambia si es intraday
-    )
-    
-    # ============================
-    # Trades
-    # ============================
-    
-    trades = pf.trades.records_readable
-    trades = trades = (
-    trades
-    .replace([np.inf, -np.inf], np.nan)
-    .dropna()).copy()
-
-    trades = trades.rename(columns={
-        'Avg Entry Price': 'entry_price',
-        'Avg Exit Price': 'exit_price',
-        'PnL': 'pnl',
-        'Direction':'type'
-    })
-    
-
-    # =============================
-    # Results
-    # =============================
-    print(pf.stats())
-    #pf.plot().show()
-    
-    print(trades)
-    
-    
-    return
-
-
-def breakout_donchain_multi_asset(f_dict):
+    Rules: Close above upper band of donchain channel -> buy
+           Close bellow lower band -> sell
+           Donchain channel : lookback=5 and offset=1
+    """
     
     
     all_params = prepare_n_dim_arrays(f_dict)
@@ -254,6 +207,7 @@ def breakout_donchain_multi_asset(f_dict):
     offset = 1
     donchain_upper_arr  = np.full((n_bars, n_cols), np.nan)
     donchain_lower_arr  = np.full((n_bars, n_cols), np.nan)
+    atr_arr  = np.full((n_bars, n_cols), np.nan)
     
     col = 0
     
@@ -273,6 +227,8 @@ def breakout_donchain_multi_asset(f_dict):
         .rolling(window=lookback, min_periods=lookback)
         .min()
         .shift(offset))
+        
+        atr_arr[:, col] = utils_helpers.compute_atr(df)
 
         col += 1
     
@@ -280,7 +236,7 @@ def breakout_donchain_multi_asset(f_dict):
     # Entry Conditions
     # =============================
     long_entries = close_arr > donchain_upper_arr
-   
+  
 
     # =============================
     # Exit Conditions (reversal logic)
@@ -300,11 +256,9 @@ def breakout_donchain_multi_asset(f_dict):
         price=close_arr,
         direction='longonly',
         fees=0.001,
-        #size=0.2,
+        size=1,
         #size_type="percent",  # % del equity
-        #init_cash=10_000,
-         size=1,
-        init_cash=0,
+        init_cash= 0 ,#initial_equity,
         freq="1D"  # cambia si es intraday
     )
     
@@ -317,6 +271,16 @@ def breakout_donchain_multi_asset(f_dict):
     trades
     .replace([np.inf, -np.inf], np.nan)
     .dropna()).copy()
+    
+    trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+    trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+    trades['day'] = trades['entry_time'].dt.normalize()
+    entry_idx = trades['Entry Timestamp'].values
+    
+    entry_idx = trades['Entry Timestamp'].values
+    col_idx   = trades['Column'].values
+
+    trades['stop_loss_price'] = donchain_lower_arr[entry_idx, col_idx] 
 
     trades = trades.rename(columns={
         'Avg Entry Price': 'entry_price',
@@ -325,8 +289,6 @@ def breakout_donchain_multi_asset(f_dict):
         'Direction':'type'
     })
     
-  
-    
     col_meta_df = pd.DataFrame(col_meta).set_index('column')
     trades = trades.join(col_meta_df, on='Column')
     
@@ -334,18 +296,29 @@ def breakout_donchain_multi_asset(f_dict):
     trades['strategy'] =  'breakout_donchain_multi_asset'
     trades['is_profit'] =  trades['pnl'] > 0
    
-    
     grouped = trades.groupby('ticker')
     
+    result = {
+    }
+    
     for ticker, group in grouped:
-        print(ticker)
-        print(group)
+        result[ticker] = group
     
     
-    return grouped
+    return result
    
    
-def mean_reversion_donchain_multi_asset(f_dict):
+def mean_reversion_donchain(f_dict, initial_equity=10000):
+    
+    """
+    Mean strategy, good bullish assest like SPY, NASDAQ, GOLD, SLV. Timeframes >= 1h
+    BIAS: Long only
+    f_dict: dictionary with ticker name as key and data as value ex: {"TSLA": dataframe, "QQQ":dataframe2,....}
+    
+    Rules: Close bellow lower band of donchain channel -> buy
+           Close bellow upper band -> sell
+           Donchain channel : lookback=5 and offset=1
+    """
     
     
     all_params = prepare_n_dim_arrays(f_dict)
@@ -354,12 +327,14 @@ def mean_reversion_donchain_multi_asset(f_dict):
     n_cols = all_params['n_cols']
     index_master = all_params['index_master']
     close_arr = all_params['close_arr']
+    open_arr = all_params['open_arr']
     col_meta = all_params['col_meta']
     
     lookback = 5
     offset = 1
     donchain_upper_arr  = np.full((n_bars, n_cols), np.nan)
     donchain_lower_arr  = np.full((n_bars, n_cols), np.nan)
+    atr_arr  = np.full((n_bars, n_cols), np.nan)
     
     col = 0
     
@@ -379,6 +354,8 @@ def mean_reversion_donchain_multi_asset(f_dict):
         .rolling(window=lookback, min_periods=lookback)
         .min()
         .shift(offset))
+        
+        atr_arr[:, col] = utils_helpers.compute_atr(df)
 
         col += 1
     
@@ -386,6 +363,8 @@ def mean_reversion_donchain_multi_asset(f_dict):
     # Entry Conditions
     # =============================
     long_entries = close_arr < donchain_lower_arr
+    
+    tp_stop  = (close_arr - 3 * atr_arr) / close_arr
    
 
     # =============================
@@ -406,11 +385,11 @@ def mean_reversion_donchain_multi_asset(f_dict):
         price=close_arr,
         direction='longonly',
         fees=0.001,
-        #size=0.2,
-        #size_type="percent",  # % del equity
-        #init_cash=10_000,
-         size=1,
-        init_cash=0,
+        tp_stop=tp_stop,
+        size=0.2,
+        size_type="percent",  # % del equity
+        init_cash=initial_equity,
+
         freq="1D"  # cambia si es intraday
     )
     
@@ -423,6 +402,14 @@ def mean_reversion_donchain_multi_asset(f_dict):
     trades
     .replace([np.inf, -np.inf], np.nan)
     .dropna()).copy()
+    
+    trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+    trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+    trades['day'] = trades['entry_time'].dt.normalize()
+    entry_idx = trades['Entry Timestamp'].values
+    col_idx   = trades['Column'].values
+
+    trades['stop_loss_price'] = open_arr[entry_idx, col_idx] - 3 * atr_arr[entry_idx, col_idx]
 
     trades = trades.rename(columns={
         'Avg Entry Price': 'entry_price',
@@ -439,15 +426,20 @@ def mean_reversion_donchain_multi_asset(f_dict):
     trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
     trades['strategy'] =  'mean_reversion_donchain_multi_asset'
     trades['is_profit'] =  trades['pnl'] > 0
+    
+    
    
     
     grouped = trades.groupby('ticker')
     
+    result = {
+    }
+    
     for ticker, group in grouped:
-        print(ticker)
-        print(group)
-        
-    return grouped
+        result[ticker] = group
+    
+    
+    return result
     
     
 

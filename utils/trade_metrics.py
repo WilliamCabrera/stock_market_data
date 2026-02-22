@@ -3,6 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from utils import utils
 
+pd.options.display.float_format = '{:.3f}'.format
+
+
 
 # ============================================================
 # BENCHMARKS
@@ -28,28 +31,9 @@ def buy_and_hold_benchmark(ticker, _from, _to, initial_capital):
         index=df.index,
     )
     result['equity'] = result['equity'].round(2)
-    print(result)
+ 
     return result
     
-
-# ============================================================
-# R MULTIPLE (EDGE PURO)
-# ============================================================
-
-def r_multiple(trades: pd.DataFrame) -> pd.Series:
-    """
-    Calcula el R-multiple por trade.
-    Long : (exit - entry) / (entry - stop)
-    Short: (entry - exit) / (stop - entry)
-    """
-    r = np.where(
-        trades["type"] == "Long",
-        (trades["exit_price"] - trades["entry_price"]) /
-        (trades["entry_price"] - trades["stop_loss_price"]),
-        (trades["entry_price"] - trades["exit_price"]) /
-        (trades["stop_loss_price"] - trades["entry_price"])
-    )
-    return pd.Series(r, index=trades.index, name="R")
 
 
 # ============================================================
@@ -200,9 +184,7 @@ def avg_r_win(trades: pd.DataFrame) -> float:
     r = r_multiple(trades)
     return r[r > 0].mean()
 
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
+
 
 # ============================================================
 # R MULTIPLE (EDGE PURO)
@@ -223,21 +205,22 @@ def r_multiple(trades: pd.DataFrame) -> pd.Series:
     )
     
     inf_mask = np.isinf(r)  
-     
-    print(trades[inf_mask])
-     
     
-    return pd.Series(r, index=trades.index, name="R")
+    res =  pd.Series(r, index=trades.index, name="R").round(3)
+
+    return  res
 
 
 # ============================================================
 # EQUITY DESDE R (% FIJO DE LA CUENTA)
 # ============================================================
 
+
 def equity_from_r(trades: pd.DataFrame, initial_capital: float, risk_pct: float) -> pd.DataFrame:
     """
     Construye la curva de equity usando R y un % fijo de la cuenta por trade.
     Devuelve un DataFrame con índice exit_time y columnas equity + entry_time
+    risk_pct: entre 0 y 1, ex: 50% = 0.5
     """
     trades = trades.copy().sort_values("exit_time")
     trades["R"] = r_multiple(trades)
@@ -349,7 +332,35 @@ def kurtosis(returns: pd.Series) -> float:
 def daily_var(returns: pd.Series, level: float = 0.05) -> float:
     return returns.quantile(level)
 
+def returns_distribution(returns):
+    
+    if not isinstance(returns, np.ndarray):
+        returns = returns.to_numpy()
+        
+    mean = returns.mean()
+    median = np.median(returns)
+    p1, p5, p50, p95, p99 = np.percentile(
+    returns, [1, 5, 50, 95, 99]
+    )
 
+  
+
+    plt.figure(figsize=(10,6))
+    plt.hist(returns, bins=50, density=True)
+
+    # Dibujar líneas
+    plt.axvline(p1)
+    plt.axvline(p5)
+    plt.axvline(p50)
+    plt.axvline(p95)
+    plt.axvline(p99)
+    plt.axvline(mean)
+    plt.axvline(median)
+
+    plt.title("Distribución de Returns con Percentiles")
+    plt.show()
+    
+    return
 # ============================================================
 # TRADE STATS (EN R)
 # ============================================================
@@ -422,10 +433,9 @@ def summary_report(trades: pd.DataFrame, initial_capital: float, risk_pct: float
         alpha, beta = alpha_beta(returns, benchmark_returns)
         report["Alpha"] = alpha
         report["Beta"] = beta
-
+        
+   
     return pd.Series(report)
-
-
 
 
 # ============================================================
@@ -443,15 +453,11 @@ def analysis_and_plot(trades: pd.DataFrame, initial_capital: float, risk_pct: fl
     equity_df.index = pd.to_datetime(equity_df.index)
     equity = equity_df["equity"]  # Tomar la columna de equity
     
-    print(equity_df)
-    print(equity)
-
     # ============================================================
     # Resumen
     # ============================================================
     report = summary_report(trades, initial_capital=initial_capital, risk_pct=risk_pct)
     print(report)
-
     # ============================================================
     # Calcular métricas
     # ============================================================
@@ -470,7 +476,7 @@ def analysis_and_plot(trades: pd.DataFrame, initial_capital: float, risk_pct: fl
     # ============================================================
     # Graficar dashboard
     # ============================================================
-     # ============================================================
+    # ============================================================
     # Crear layout 2x2 con gridspec
     # ============================================================
     fig = plt.figure(figsize=(16, 12))
@@ -695,51 +701,112 @@ def get_mae_mfe(trades, data):
 # MONTECARLO SIMALATION
 #============================
 
-def montecarlo():
+def monte_carlo_final_equity_dd_sim(trades, f=0.01, n_sims=10000, show_graphic=False, dd_threshold=0.15):
     
-    import matplotlib.pyplot as plt
+    """
+    Genera un array con el final_equity de cada simulación y un array con el max DD para cada simulación.
+    Crea un gráfico con histogramas para ambos casos mostrando cómo están distribuidos los resultados y DD.
+    Agrega líneas de media, mediana y percentiles 1,5, 95.
+    
+    trades: dataframe of trades [ticker, entry_time, exit_time, pnl,....]
+    f: risk per trade (% valuer entre 0 y 1)
+    n_sims: total de simulaciones
+    show_graphic: si quiere mostrar histograma de distribucion de resultados
+    dd_threshold: usado para ver que probabilidad hay de tener un DD > que ese paramatro
+    """
+    trades = trades.copy().sort_values("exit_time")
+    r_mult = r_multiple(trades)  # función que devuelve retornos por trade
+    n_trades = len(r_mult)
+    
+    final_equity = []
+    max_dds = []
+    
+    for _ in range(n_sims):
+        shuffled = np.random.choice(r_mult, size=n_trades, replace=True)
+        
+        equity = 1.0
+        peak = 1.0
+        max_dd = 0
+        
+        for r in shuffled:
+            equity *= (1 + f * r)
+            peak = max(peak, equity)
+            dd = (equity - peak) / peak
+            max_dd = min(max_dd, dd)
+        
+        final_equity.append(equity)
+        max_dds.append(max_dd)
+        
+    final_equity = np.array(final_equity)
+    max_dds = np.array(max_dds)
+    
+    
+    
+    
+    # Calcular estadísticas
+    stats = {}
+    for arr, name in zip([final_equity, max_dds], ["Equity Final", "Drawdown Máx"]):
+        stats[name] = {
+            "media": np.mean(arr),
+            "mediana": np.median(arr),
+            "p1": np.percentile(arr, 1),
+            "p5": np.percentile(arr, 5),
+            "p95": np.percentile(arr, 95)
+        }
+        
 
-    # Parámetros de la Estrategia 5
-    winrate = 0.63
-    avg_win = 0.60
-    avg_loss = 0.85
+    # max_dds es un array negativo o positivo? 
+    # En tu función, dd = (equity - peak)/peak → es negativo
+    # Por lo tanto, para > 15% usamos -0.15
 
-    n_trades = 1000       # Número de trades por simulación
-    n_simulations = 1000  # Número de caminos Monte Carlo
+    threshold = -1 * dd_threshold  # -15%
+    
+    """
+    max_dds < threshold → genera un array booleano donde True = drawdown peor que -15%.
+    np.mean(...) → como True=1 y False=0, el promedio es la proporción de veces que ocurre, es decir, la probabilidad.
+    """
+    prob_dd_gt_15 = np.mean(max_dds < threshold)
 
-    # Guardar todas las curvas de equity
-    all_equities = []
-
-    for _ in range(n_simulations):
-        wins = np.random.rand(n_trades) < winrate
-        returns = np.where(wins, avg_win, -avg_loss)
-        equity = np.cumsum(returns)
-        all_equities.append(equity)
-
-    all_equities = np.array(all_equities)
-
-    # Calcular percentiles
-    percentile_10 = np.percentile(all_equities, 10, axis=0)
-    percentile_50 = np.percentile(all_equities, 50, axis=0)
-    percentile_90 = np.percentile(all_equities, 90, axis=0)
-
-    # Gráfico de banda de Monte Carlo
-    plt.figure(figsize=(12,6))
-    plt.fill_between(range(n_trades), percentile_10, percentile_90, color='lightblue', alpha=0.5, label='10%-90% band')
-    plt.plot(percentile_50, color='blue', label='Mediana (50%)')
-    plt.title('Monte Carlo Equity Curve - Estrategia 5')
-    plt.xlabel('Número de Trades')
-    plt.ylabel('Equity acumulada')
-    plt.legend()
-    plt.show()
-
-    # Calcular drawdowns máximos por camino
-    drawdowns = np.max(np.maximum.accumulate(all_equities, axis=1) - all_equities, axis=1)
-
-    # Histograma de drawdowns
-    plt.figure(figsize=(8,5))
-    plt.hist(drawdowns, bins=50, color='salmon', edgecolor='black')
-    plt.title('Distribución de Drawdowns - Estrategia 5')
-    plt.xlabel('Drawdown máximo por camino')
-    plt.ylabel('Frecuencia')
-    plt.show()
+    print(f"Probabilidad de DD > 15%: {prob_dd_gt_15:.2%}")
+    stats['DD_gt_threshold_%'] = prob_dd_gt_15
+    
+    if show_graphic:
+        # Crear la figura con 2 subplots
+        fig, axes = plt.subplots(1, 2, figsize=(16,6))
+        
+        # --- Equity Final ---
+        axes[0].hist(final_equity, bins=100, color='skyblue', edgecolor='black')
+        axes[0].set_title('Monte Carlo (Equity Final in R)')
+        axes[0].set_xlabel('Equity Final in R')
+        axes[0].set_ylabel('Frecuencia')
+        axes[0].grid(alpha=0.3)
+        
+        # Líneas estadísticas
+        axes[0].axvline(stats["Equity Final"]["media"], color='red', linestyle='--', label='Media')
+        axes[0].axvline(stats["Equity Final"]["mediana"], color='green', linestyle='-', label='Mediana')
+        axes[0].axvline(stats["Equity Final"]["p1"], color='purple', linestyle=':', label='Percentil 1')
+        axes[0].axvline(stats["Equity Final"]["p5"], color='black', linestyle=':', label='Percentil 5')
+        axes[0].axvline(stats["Equity Final"]["p95"], color='orange', linestyle=':', label='Percentil 95')
+        axes[0].legend()
+        
+        # --- Drawdown Máximo ---
+        axes[1].hist(max_dds, bins=100, color='salmon', edgecolor='black')
+        axes[1].set_title('Monte Carlo (Drawdown Máximo in R)')
+        axes[1].set_xlabel('Drawdown Máximo in R')
+        axes[1].set_ylabel('Frecuencia')
+        axes[1].grid(alpha=0.3)
+        
+        # Líneas estadísticas
+        axes[1].axvline(stats["Drawdown Máx"]["media"], color='red', linestyle='--', label='Media')
+        axes[1].axvline(stats["Drawdown Máx"]["mediana"], color='green', linestyle='-', label='Mediana')
+        axes[1].axvline(stats["Drawdown Máx"]["p1"], color='purple', linestyle=':', label='Percentil 1')
+        axes[1].axvline(stats["Drawdown Máx"]["p5"], color='black', linestyle=':', label='Percentil 5')
+        axes[1].axvline(stats["Drawdown Máx"]["p95"], color='orange', linestyle=':', label='Percentil 95')
+        axes[1].legend()
+        
+        plt.tight_layout()
+        plt.show()
+        
+    
+    
+    return stats

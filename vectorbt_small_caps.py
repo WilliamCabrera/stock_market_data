@@ -1,5 +1,7 @@
 import vectorbt as vbt
 import pandas as pd
+pd.options.display.float_format = '{:.3f}'.format
+
 import numpy as np
 from utils import helpers as utils_helpers, trade_metrics as tme
 import itertools
@@ -579,8 +581,6 @@ def save_trades_to_file(trades, file_path="vectorbt_trades", append=True):
 
 # ====== examples code ======= 
 
-  
-    
 def backtest_multiple_dias_vars(ticker="SIDU"):
     
     dias = ['2025-12-26', '2025-12-29']
@@ -1652,6 +1652,248 @@ def backside_short(f_dict):
         
     except Exception as e:
         print(" error found in   --- backside_short --- ")
+        print(e)
+        return pd.DataFrame([])
+    
+    
+def backside_short_atr_from_vwap(f_dict):
+    """
+    Short cuando el momentum comienza a fallar (backside)
+    condiciones:
+    - vela previa verde
+    - vela actual roja (cuerpo mayor cuerpo de la vela previa)
+    - lower low (cierre actual < mínimo previo) o upper tail grande (vela roja)
+    - gap mínimo vs previous day close
+    1 take profit at 15%
+    1 stop loss at 3.5 ATR
+    params: f_dict: {ticker: df_5m, ...}
+    
+    """
+    
+    try:
+        # ==================================================
+        # PARAMETROS
+        # ==================================================
+        tp_list  = [0.10, 0.10, 0.15, 0.15, 0.20, 0.20, 1.00, 1.00]        # TP relativos (short)
+        sl_list  = [2.00, 3.50, 2.00, 3.50, 2.00, 3.50, 2.00, 3.50]          # SL en múltiplos de ATR
+        gap_list = [0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.50]          # Gap mínimo vs prev day close
+
+        # ==================================================
+        # PREPARAR VECTORES
+        # ==================================================
+        all_params = prepare_params_and_vectors_for_gappers(
+            f_dict,
+            gap_list,
+            tp_list,
+            sl_list
+        )
+
+        tp_sl_gap_pairs     = all_params['tp_sl_gap_pairs']
+        n_params            = all_params['n_params']
+        index_master        = all_params['index_master']
+        n_tickers           = all_params['n_tickers']
+        n_cols              = all_params['n_cols']
+        n_bars              = all_params['n_bars']
+
+        open_arr            = all_params['open_arr']
+        high_arr            = all_params['high_arr']
+        low_arr             = all_params['low_arr']
+        close_arr           = all_params['close_arr']
+        atr_arr             = all_params['atr_arr']
+        volume_arr          = all_params['volume_arr']
+        rvol_arr            = all_params['rvol_arr']
+        prev_day_close_arr  = all_params['prev_day_close_arr']
+
+        col_meta            = all_params['col_meta']
+        vwap_arr  = all_params['vwap_arr']
+        time_mask = all_params['time_mask']
+
+        # ==================================================
+        # INICIALIZAR ENTRADAS
+        # ==================================================
+        entries = np.zeros((n_bars, n_cols), dtype=bool)
+
+        # ==================================================
+        # VELAS (VECTORIAL)
+        # ==================================================
+        red_curr = close_arr < open_arr
+
+        prev_open  = np.roll(open_arr, 1, axis=0)
+        prev_close = np.roll(close_arr, 1, axis=0)
+        prev_high  = np.roll(high_arr, 1, axis=0)
+        prev_low   = np.roll(low_arr, 1, axis=0)
+
+        green_prev = prev_close > prev_open
+        
+        # ================================================
+        # VELA ACTUAL MAYOR QUE VELA PREVIA         
+        # =================================================
+        prev_open_2  = np.roll(open_arr, 2, axis=0)
+        prev_close_2 = np.roll(close_arr, 2, axis=0)
+        prev_high_2  = np.roll(high_arr, 2, axis=0)
+        prev_low_2   = np.roll(low_arr, 2, axis=0)
+
+        green_prev_2 = prev_close_2 > prev_open_2
+
+        # ==================================================
+        # LOWER LOW (definición exacta)
+        # ==================================================
+        lower_low_1 = (
+            green_prev &
+            red_curr &
+            (close_arr < prev_low)
+        )
+        
+        lower_low_2 = (
+            green_prev_2 &
+            red_curr &
+            (close_arr < prev_low_2)
+        )
+
+        lower_low = lower_low_1 | lower_low_2
+        
+        # ==================================================
+        # GAP % VS PREVIOUS DAY CLOSE (POR COLUMNA)
+        # ==================================================
+        gap_vals = np.array([m["gap"] for m in col_meta])
+
+        gap_pct = np.divide(
+            close_arr - prev_day_close_arr,
+            prev_day_close_arr,
+            out=np.zeros_like(close_arr, dtype=float),
+            where=prev_day_close_arr > 0
+        )
+
+        gap_cond = (gap_pct >= gap_vals) & (gap_pct <= 5.0)
+        
+        gap_pct_with_high = np.divide(
+            high_arr - prev_day_close_arr,
+            prev_day_close_arr,
+            out=np.zeros_like(high_arr, dtype=float),
+            where=prev_day_close_arr > 0
+        )
+        
+        gap_cond_for_tail = (gap_pct_with_high >= gap_vals) & (gap_pct_with_high <= 5.0)
+        
+        #print("Gap condition calculated")   
+        #print(gap_cond)
+        
+      
+        
+        # ==================================================
+        # UPPER TAIL GRANDE (vela roja)
+        # ==================================================
+        body = np.abs(close_arr - open_arr)
+        upper_tail = high_arr - np.maximum(open_arr, close_arr)
+
+        big_upper_tail = (
+            red_curr &
+            (upper_tail >= 5.0 * body) & 
+            (prev_high < high_arr)
+        ) 
+
+        gap_filter = np.where(
+            big_upper_tail,
+            gap_cond_for_tail,   # cuando hay upper tail
+            gap_cond             # caso contrario
+        )
+        
+        # ==================================================
+        # CONDICION: PRECIO > VWAP
+        # ==================================================
+        
+        is_above_vwap = close_arr > vwap_arr
+        
+        #print("is_above_vwap condition calculated")   
+        #print(is_above_vwap)
+
+        # ==================================================
+        # ENTRADAS SHORT
+        # ==================================================
+        entries = (
+            gap_filter &
+            is_above_vwap &
+            time_mask[:, None] &
+            (
+                lower_low |
+                big_upper_tail
+            )
+        )
+
+        # ==================================================
+        # TAKE PROFIT / STOP LOSS (POR COLUMNA)
+        # ==================================================
+        tp_vals = np.array([m["tp"] for m in col_meta])
+        sl_vals = np.array([m["sl"] for m in col_meta])
+
+        tp_price = open_arr * (1 - tp_vals)        # short
+        sl_price = open_arr + sl_vals * atr_arr    # SL ATR
+
+        tp_stop = np.full_like(open_arr, np.nan)
+        sl_stop = np.full_like(open_arr, np.nan)
+
+        tp_stop[:] = (open_arr - tp_price) / open_arr
+        sl_stop[:] = (sl_price - open_arr) / open_arr
+
+        # ==================================================
+        # FORCED EXIT EOD
+        # ==================================================
+        forced_exit = np.zeros_like(entries, dtype=bool)
+        forced_exit = generate_signal_to_force_close_EOD(
+            forced_exit,
+            index_master
+        )
+
+        # ==================================================
+        # PORTFOLIO
+        # ==================================================
+        pf = vbt.Portfolio.from_signals(
+            close=close_arr,
+            high=high_arr,
+            low=low_arr,
+            entries=entries,
+            exits=forced_exit,
+            #price=open_arr,
+            direction='shortonly',
+            tp_stop=tp_stop,
+            sl_stop=sl_stop,
+            size=1,
+            init_cash=0,
+            freq='5min'
+        )
+        
+        trades = pf.trades.records_readable
+        trades = trades = (
+        trades
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()).copy()
+
+        trades = trades.rename(columns={
+            'Avg Entry Price': 'entry_price',
+            'Avg Exit Price': 'exit_price',
+            'PnL': 'pnl',
+            'Direction':'type'
+        })
+        
+        col_meta_df = pd.DataFrame(col_meta).set_index('column')
+        trades = trades.join(col_meta_df, on='Column')
+        trades = trades.replace([np.inf, -np.inf], np.nan).dropna()
+        trades['strategy'] = f'backside_short_atr_from_vwap_strategy_'+ trades['tp'].astype(str) + "_" + trades['sl'].astype(str)+ "_" + trades['gap'].astype(str)
+        trades['entry_time'] = index_master[trades['Entry Timestamp'].values]
+        trades['exit_time']  = index_master[trades['Exit Timestamp'].values]
+        entry_idx = trades['Entry Timestamp'].values
+        col_idx   = trades['Column'].values
+        
+        atr_entry = atr_arr[entry_idx, col_idx]
+        trades['stop_loss_price'] = (trades['entry_price'] + trades['sl'] * atr_entry)
+        trades['rvol_daily'] = rvol_arr[entry_idx, col_idx]
+        trades['previous_day_close'] = prev_day_close_arr[entry_idx, col_idx]
+        trades['volume'] = volume_arr[entry_idx, col_idx]
+        
+        return reduce_trades_columns(trades) 
+        
+    except Exception as e:
+        print(" error found in   --- backside_short_atr_from_vwap --- ")
         print(e)
         return pd.DataFrame([])
     
@@ -3006,6 +3248,12 @@ def run_full_backtest():
 # run_walk_forward_test(strategy_fn=backside_short)
 # run_walk_forward_test(strategy_fn=backside_short, sample_type='out_sample')
 
+run_first_stage_test(strategy_fn=backside_short_atr_from_vwap)
+run_first_stage_test(strategy_fn=backside_short_atr_from_vwap, sample_type='out_of_sample')
+
+run_walk_forward_test(strategy_fn=backside_short_atr_from_vwap)
+run_walk_forward_test(strategy_fn=backside_short_atr_from_vwap, sample_type='out_sample')
+
 # run_stats_on_first_stage_trades(strategy_fn=backside_short)
 # run_stats_on_first_stage_trades(strategy_fn=backside_short, sample_type='out_of_sample')
 
@@ -3061,13 +3309,25 @@ def run_full_backtest():
 # print(trades5[filter])
 
 trades_path = 'backtest_dataset/in_sample/trades/backside_short/backside_short_in_sample_trades.parquet'
-data_path = 'backtest_dataset/in_sample/gappers_backtest_dataset_5min_in_sample.parquet'
+# data_path = 'backtest_dataset/in_sample/gappers_backtest_dataset_5min_in_sample.parquet'
 
-trades=  pd.read_parquet(trades_path)
-data =  pd.read_parquet(data_path)
-res = tme.get_mae_mfe(trades, data)
+# trades=  pd.read_parquet(trades_path)
+# data =  pd.read_parquet(data_path)
+# res = tme.get_mae_mfe(trades, data)
 
-print(res)
+# print(res)
+
+# trades=  pd.read_parquet(trades_path)
+# trades['is_profit'] =  trades['pnl'] > 0
+# trades_1 =  trades[trades['strategy'] == 'backside_short_strategy_0.1_3.5_0.5']
+# trades_1 =  trades[trades['strategy'] == 'backside_short_strategy_0.2_3.5_0.5']
+# risk_pct=0.01
+# report = tme.summary_report(trades_1,initial_capital=1000, risk_pct=risk_pct)
+# print(report)
+# tme.monte_carlo_final_equity_dd_sim(trades_1, f=risk_pct, show_graphic=True)
+
+
+
 
 
  

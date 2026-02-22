@@ -221,9 +221,7 @@ async def fetch_and_process(session: aiohttp.ClientSession, params, api_semaphor
     """
     (ticker, start_date, end_date) = params
     
-    if ticker == 'VERO':
-        print(" ===== fetch_and_process =======")
-        print( (ticker, start_date, end_date))
+    
     
     # Usamos el semáforo para limitar la concurrencia a la API
     async with api_semaphore:
